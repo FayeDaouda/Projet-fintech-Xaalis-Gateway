@@ -1,0 +1,100 @@
+# Lancement complet : `docker compose up --build`
+# Aucun fichier .env n'est requis : les valeurs par défaut ci-dessous sont des valeurs
+# de DÉVELOPPEMENT (préfixe dev-only-), refusées par l'application en production.
+
+name: xaalis
+
+x-app: &app
+  image: xaalis-gateway:local
+  build:
+    context: .
+    target: runtime
+  restart: unless-stopped
+  environment: &app-env
+    XAALIS_ENVIRONMENT: ${XAALIS_ENVIRONMENT:-development}
+    XAALIS_DATABASE_URL: postgresql+asyncpg://xaalis:${POSTGRES_PASSWORD:-xaalis}@db:5432/xaalis
+    XAALIS_REDIS_URL: redis://redis:6379/0
+    XAALIS_API_KEY_PEPPER: ${XAALIS_API_KEY_PEPPER:-dev-only-api-key-pepper-not-for-production}
+    XAALIS_JWT_SECRET: ${XAALIS_JWT_SECRET:-dev-only-jwt-secret-not-for-production-use}
+    XAALIS_LOG_LEVEL: ${XAALIS_LOG_LEVEL:-INFO}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: xaalis
+      POSTGRES_USER: xaalis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xaalis}
+    ports: ["5432:5432"]
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xaalis -d xaalis"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Service à usage unique : migrations puis jeu de démonstration (idempotent), puis arrêt.
+  # api et worker attendent sa réussite (service_completed_successfully).
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["sh", "-c", "alembic upgrade head && python -m xaalis.seed"]
+    environment:
+      <<: *app-env
+      XAALIS_SEED_ADMIN_PASSWORD: ${XAALIS_SEED_ADMIN_PASSWORD:-dev-only-admin-password}
+      XAALIS_DEMO_TEST_PUBLISHABLE_KEY: ${XAALIS_DEMO_TEST_PUBLISHABLE_KEY:-}
+      XAALIS_DEMO_TEST_SECRET_KEY: ${XAALIS_DEMO_TEST_SECRET_KEY:-}
+    healthcheck: { disable: true }
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    <<: *app
+    environment:
+      <<: *app-env
+      XAALIS_SERVICE_NAME: xaalis-api
+    ports: ["8000:8000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      operators: { condition: service_healthy }
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "xaalis.worker"]
+    environment:
+      <<: *app-env
+      XAALIS_SERVICE_NAME: xaalis-worker
+      XAALIS_HEALTHCHECK_FILE: /tmp/xaalis-worker.heartbeat
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  operators:
+    <<: *app
+    command: ["uvicorn", "xaalis_sim.operators.app:app", "--host", "0.0.0.0", "--port", "8100", "--no-access-log"]
+    environment:
+      XAALIS_HEALTHCHECK_URL: http://127.0.0.1:8100/healthz
+    ports: ["8100:8100"]
+
+  merchant-demo:
+    <<: *app
+    command: ["uvicorn", "xaalis_sim.merchant_demo.app:app", "--host", "0.0.0.0", "--port", "8200", "--no-access-log"]
+    environment:
+      XAALIS_HEALTHCHECK_URL: http://127.0.0.1:8200/healthz
+    ports: ["8200:8200"]
+
+volumes:
+  db-data:
