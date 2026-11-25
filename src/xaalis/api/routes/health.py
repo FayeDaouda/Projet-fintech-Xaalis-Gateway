@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 
 from xaalis.api.resources import Resources, ResourcesDep
+from xaalis.observability.business import refresh_business_metrics
 from xaalis.observability.logging import get_logger
 
 router = APIRouter(tags=["operations"])
@@ -63,7 +64,8 @@ async def readyz(resources: ResourcesDep) -> Response:
     response_class=PlainTextResponse,
     summary="Métriques au format d'exposition Prometheus",
 )
-async def metrics() -> Response:
+async def metrics(resources: ResourcesDep) -> Response:
+    await refresh_business_metrics(resources.sessionmaker, resources.operator_health)
     return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
