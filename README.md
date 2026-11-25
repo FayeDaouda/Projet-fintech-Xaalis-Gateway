@@ -1,5 +1,7 @@
 # Xaalis Gateway
 
+[![CI](https://github.com/FayeDaouda/Projet-fintech-Xaalis-Gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/FayeDaouda/Projet-fintech-Xaalis-Gateway/actions/workflows/ci.yml)
+
 Passerelle de paiement mobile money multi-opérateurs (Go Pay, Teranga Money, Ndiaga Cash) :
 une seule API pour le marchand, routage et bascule entre opérateurs, grand livre en partie
 double, webhooks signés, rapprochement quotidien et règlement T+1.
