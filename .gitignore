@@ -1,0 +1,29 @@
+# Python / outils
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Secrets : seul .env.example est versionné
+.env
+.env.*
+!.env.example
+
+# Éditeurs / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Artefacts de test de charge
+loadtest/results/*.csv
+!loadtest/results/.gitkeep

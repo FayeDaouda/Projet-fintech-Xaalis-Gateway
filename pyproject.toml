@@ -1,0 +1,127 @@
+[project]
+name = "xaalis-gateway"
+version = "0.1.0"
+description = "Xaalis Gateway — passerelle de paiement mobile money multi-opérateurs (projet pédagogique)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary" }
+dependencies = [
+    "alembic>=1.14",
+    "argon2-cffi>=23.1",
+    "asyncpg>=0.30",
+    "fastapi>=0.115",
+    "prometheus-client>=0.21",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "pyjwt>=2.10",
+    "python-ulid>=3.0",
+    "redis>=5.2",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "structlog>=24.4",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "asgi-lifespan>=2.1",
+    "httpx>=0.27",
+    "hypothesis>=6.120",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "testcontainers[postgres,redis]>=4.8",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# `xaalis` : la passerelle (api + worker), seul paquet mesuré par la couverture.
+# `xaalis_sim` : simulateurs hors périmètre métier (opérateurs, marchand de démo).
+packages = ["src/xaalis", "src/xaalis_sim"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+# --------------------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "BLE",      # except Exception non justifié
+    "A",        # builtins shadowing
+    "C4",       # comprehensions
+    "DTZ",      # datetimes naïfs interdits (XG-15 : tout en UTC)
+    "S",        # bandit
+    "SIM",      # simplifications
+    "RUF",      # règles ruff
+    "ASYNC",    # pièges asyncio
+    "PT",       # style pytest
+    "T20",      # pas de print()
+]
+
+# Signes typographiques volontaires dans la documentation en français.
+allowed-confusables = ["×", "−", "’", "–"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S311"]
+"migrations/**" = ["N999"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# --------------------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["xaalis", "xaalis_sim"]
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# --------------------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["xaalis"]
+branch = true
+# SQLAlchemy async exécute le code ORM dans des greenlets : sans cela, coverage les ignore.
+concurrency = ["greenlet", "thread"]
+omit = ["src/xaalis/worker/__main__.py"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]
