@@ -128,6 +128,8 @@ DOMAIN_ERROR_STATUS: Mapping[str, int] = {
     "invalid_amount": 422,
     "unsupported_currency": 422,
     "no_eligible_operator": 422,
+    "invalid_signature": 401,
+    "malformed_callback": 400,
 }
 
 

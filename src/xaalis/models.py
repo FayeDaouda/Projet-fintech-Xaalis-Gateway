@@ -5,6 +5,7 @@ from xaalis.idempotency import models as idempotency_models
 from xaalis.infra.db import Base
 from xaalis.ledger import models as ledger_models
 from xaalis.merchants import models as merchant_models
+from xaalis.operators import models as operator_models
 from xaalis.outbox import models as outbox_models
 from xaalis.payments import models as payment_models
 
@@ -14,6 +15,7 @@ __all__ = [
     "idempotency_models",
     "ledger_models",
     "merchant_models",
+    "operator_models",
     "outbox_models",
     "payment_models",
 ]

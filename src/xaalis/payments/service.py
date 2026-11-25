@@ -20,6 +20,7 @@ from xaalis.core.errors import DomainError, NotFoundError
 from xaalis.core.fees import fee_breakdown
 from xaalis.core.ids import new_id
 from xaalis.core.money import CURRENCY, ensure_intent_amount
+from xaalis.core.operators import Operator
 from xaalis.core.phone import normalize_phone
 from xaalis.outbox.service import INTERNAL_PREFIX, enqueue
 from xaalis.payments.models import PaymentEvent, PaymentIntent
@@ -30,7 +31,7 @@ from xaalis.payments.state_machine import (
     next_status,
 )
 from xaalis.payments.views import PaymentIntentView
-from xaalis.routing.catalog import rank_operators
+from xaalis.routing.catalog import RoutingSnapshot, plan_route
 
 INTENT_TTL: Final = timedelta(minutes=15)  # XG-07
 MAX_PROCESSING_PER_PAYER: Final = 3  # XG-14
@@ -64,7 +65,7 @@ async def _db_now(session: AsyncSession) -> datetime:
     return now
 
 
-async def _record(
+async def _history(
     session: AsyncSession,
     intent: PaymentIntent,
     *,
@@ -73,6 +74,7 @@ async def _record(
     actor: str,
     details: Mapping[str, Any] | None = None,
 ) -> None:
+    """Historise un fait sur l'intent (transition ou non), sans le publier."""
     session.add(
         PaymentEvent(
             intent_id=intent.id,
@@ -84,6 +86,21 @@ async def _record(
         )
     )
     await session.flush()
+
+
+async def _record(
+    session: AsyncSession,
+    intent: PaymentIntent,
+    *,
+    from_status: IntentStatus | None,
+    cause: str,
+    actor: str,
+    details: Mapping[str, Any] | None = None,
+) -> None:
+    """Historise un changement d'état ET le publie dans l'outbox (même transaction)."""
+    await _history(
+        session, intent, from_status=from_status, cause=cause, actor=actor, details=details
+    )
     await enqueue(
         session,
         topic=f"payment.{intent.status}",
@@ -175,7 +192,12 @@ async def create_intent(
 
 
 async def confirm_intent(
-    session: AsyncSession, scope: Scope, intent_id: str, *, actor: str
+    session: AsyncSession,
+    scope: Scope,
+    intent_id: str,
+    *,
+    actor: str,
+    snapshot: RoutingSnapshot | None = None,
 ) -> PaymentIntent:
     """``created → processing`` : choisit l'opérateur et demande le débit (asynchrone).
 
@@ -202,7 +224,7 @@ async def confirm_intent(
         msg = f"le payeur a déjà {MAX_PROCESSING_PER_PAYER} paiements en cours"
         raise PayerLimitExceededError(msg)
 
-    candidates = rank_operators(intent.payer_phone)
+    candidates = plan_route(intent.payer_phone, snapshot)
     await _transition(
         session,
         intent,
@@ -220,6 +242,70 @@ async def confirm_intent(
         payload={"intent_id": intent.id, "candidates": [op.value for op in candidates]},
     )
     return intent
+
+
+async def select_operator(
+    session: AsyncSession, intent_id: str, operator: Operator, *, actor: str
+) -> PaymentIntent | None:
+    """Avant chaque tentative d'envoi : fixe l'opérateur courant (bascule éventuelle).
+
+    Renvoie ``None`` si l'intent n'est plus ``processing`` (expiré, annulé…) : il ne faut
+    alors plus rien envoyer. Fixer l'opérateur AVANT l'appel garantit qu'un callback
+    rapide de cet opérateur trouve l'intent déjà associé à lui.
+    """
+    intent = await lock_intent(session, intent_id)
+    if intent.status != IntentStatus.PROCESSING.value:
+        return None
+    if intent.operator != operator.value:
+        previous = intent.operator
+        intent.operator = operator.value
+        intent.updated_at = await _db_now(session)
+        await session.flush()
+        await _history(
+            session,
+            intent,
+            from_status=IntentStatus.PROCESSING,
+            cause="operator_failover",
+            actor=actor,
+            details={"from": previous, "to": operator.value},
+        )
+    return intent
+
+
+async def record_operator_acceptance(
+    session: AsyncSession, intent_id: str, operator: Operator, operator_reference: str
+) -> None:
+    """L'opérateur a accepté la demande de débit : on retient sa référence."""
+    intent = await lock_intent(session, intent_id)
+    if intent.operator == operator.value and intent.operator_reference is None:
+        intent.operator_reference = operator_reference
+        await session.flush()
+
+
+async def apply_operator_outcome(
+    session: AsyncSession,
+    intent: PaymentIntent,
+    *,
+    succeeded: bool,
+    operator_reference: str,
+) -> PaymentIntent:
+    """Issue finale annoncée par l'opérateur, sur un intent **déjà verrouillé**."""
+    if succeeded:
+        return await _transition(
+            session,
+            intent,
+            IntentEvent.OPERATOR_SUCCEEDED,
+            actor=f"operator:{intent.operator}",
+            operator_reference=operator_reference,
+            succeeded_at=await _db_now(session),
+        )
+    return await _transition(
+        session,
+        intent,
+        IntentEvent.OPERATOR_FAILED,
+        actor=f"operator:{intent.operator}",
+        operator_reference=operator_reference,
+    )
 
 
 async def cancel_intent(
