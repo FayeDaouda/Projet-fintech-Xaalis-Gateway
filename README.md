@@ -96,6 +96,28 @@ httpx.post(
 **Rotation** : `POST /v1/api-keys/rotate` renvoie une nouvelle clé secrète ; l'ancienne reste
 valide 24 h.
 
+## Simulateur d'opérateurs et chaos
+
+Le service `operators` (port 8100) simule Go Pay (77, 78), Teranga Money (76, 70) et
+Ndiaga Cash (75, 77) avec leurs latences, taux d'échec et formats de callback. Pour la
+démonstration et les tests manuels :
+
+```bash
+# Panne de Ndiaga Cash pendant 2 minutes : les paiements 77 basculent vers Go Pay
+curl -X POST localhost:8100/_chaos -H 'Content-Type: application/json' \
+     -d '{"operator": "ndiaga", "outage_seconds": 120}'
+
+# Autres réglages : taux d'échec, latence du callback (ms), doublons, réponse lente
+curl -X POST localhost:8100/_chaos -H 'Content-Type: application/json' \
+     -d '{"operator": "teranga", "failure_rate": 0.5, "latency_ms": [100, 200], "duplicate_rate": 1}'
+
+curl localhost:8100/_chaos             # état courant
+curl -X DELETE localhost:8100/_chaos   # retour au comportement nominal
+```
+
+Fenêtres de panne périodiques de Ndiaga Cash : `XAALIS_SIM_NDIAGA_OUTAGE_EVERY_SECONDS` et
+`XAALIS_SIM_NDIAGA_OUTAGE_DURATION_SECONDS` (désactivées par défaut).
+
 ## Variables d'environnement
 
 Voir [`.env.example`](.env.example). Toutes sont préfixées par `XAALIS_`.
@@ -109,6 +131,8 @@ Voir [`.env.example`](.env.example). Toutes sont préfixées par `XAALIS_`.
 | `XAALIS_JWT_SECRET` | `dev-only-…` (≥ 32 car.) | Signature des JWT administrateur (HS256) |
 | `XAALIS_SEED_ADMIN_PASSWORD` | `dev-only-admin-password` | Mot de passe du compte admin de démo |
 | `XAALIS_DEMO_TEST_*_KEY` | vide (générées) | Clés de test imposées pour le marchand de démo |
+| `XAALIS_OPERATOR_SECRET_{GOPAY,TERANGA,NDIAGA}` | `dev-only-…` | Secrets de signature des callbacks, partagés avec le simulateur |
+| `XAALIS_BREAKER_FAILURE_THRESHOLD` / `_COOLDOWN_SECONDS` | `5` / `30` | Disjoncteur par opérateur |
 | `XAALIS_LOG_LEVEL` | `INFO` | |
 
 ## Développement

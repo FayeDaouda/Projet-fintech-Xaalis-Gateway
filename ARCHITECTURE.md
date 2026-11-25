@@ -1,6 +1,6 @@
 # Architecture
 
-> Document vivant : complété à chaque lot. Version actuelle : lots 4, 1 et 2.
+> Document vivant : complété à chaque lot. Version actuelle : lots 4, 1, 2 et 3.
 
 ## Processus
 
@@ -35,7 +35,8 @@
 | `xaalis.merchants` | Marchands, environnements test/live, clés d'API (empreintes), rotation | `core`, `infra` |
 | `xaalis.admin` | Comptes administrateurs (Argon2id), jetons JWT | `core`, `config` |
 | `xaalis.payments` | Intents : machine à états (table unique), cycle de vie, historique, vue publique | `core`, `routing`, `outbox` |
-| `xaalis.routing` | Catalogue des opérateurs, éligibilité par préfixe, classement par coût (XG-06) | `core` |
+| `xaalis.routing` | Catalogue, plan de routage (coût, taux de succès, disjoncteurs), santé partagée dans Redis | `core` |
+| `xaalis.operators` | Client sortant, dispatcher (bascule, épinglage), adaptateurs et traitement des callbacks | `payments`, `ledger`, `outbox`, `routing` |
 | `xaalis.outbox` | Outbox transactionnel (événements et commandes internes) | `infra` |
 | `xaalis.idempotency` | Clés d'idempotence en base (ADR 0005) | `infra` |
 | `xaalis.seed` | Jeu de démonstration idempotent | `admin`, `merchants` |
@@ -60,6 +61,24 @@ BEGIN ─ réservation Idempotency-Key (INSERT … ON CONFLICT : attend un concu
   │     internal.operator.charge) ─ stockage de la réponse (octets exacts)
 COMMIT ─ 202
           … le worker relève l'outbox et appelle l'opérateur (lot 3), hors de tout verrou
+```
+
+## Paiement chez l'opérateur (lot 3)
+
+```
+worker : outbox (bail) ─▶ plan de routage ─▶ disjoncteur ouvert ? ─▶ opérateur suivant
+                                │
+                                ▼
+            select_operator (opérateur courant fixé AVANT l'appel, historisé)
+                                │
+              POST /{op}/charges (référence = id de l'intent, dédupliquée par l'opérateur)
+          ┌─────────────┬───────┴──────────┬───────────────────────────┐
+       2xx accepté   503 / refus     4xx refus            timeout / 500 (ambigu)
+          │          → suivant       → suivant            → ÉPINGLÉ : reprise chez lui seul
+          ▼
+ opérateur ── callback signé ──▶ POST /v1/operators/{op}/callback
+                                   signature ─ unicité (op, référence) ─ verrou intent
+                                   transition ─ grand livre ─ outbox (payment.succeeded)
 ```
 
 ## Grand livre (lot 4)

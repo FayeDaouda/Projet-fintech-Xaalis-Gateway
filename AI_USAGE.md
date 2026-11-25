@@ -17,6 +17,7 @@ Conformément à la section 10 de l'énoncé.
 | Lot 4 : migrations, triggers, module `ledger`, tests Hypothesis | Génération assistée | ☐ |
 | Lot 1 : clés d'API, rotation, signature HMAC, Argon2id, seed, ADR 0004 | Génération assistée | ☐ |
 | Lot 2 : intents, machine à états, idempotence, limites XG-13/14, outbox, ADR 0003/0005/0006 | Génération assistée | ☐ |
+| Lot 3 : simulateur, disjoncteur, dispatcher et bascule, callbacks, ADR 0007 | Génération assistée | ☐ |
 
 ## Propositions corrigées ou rejetées
 

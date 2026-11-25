@@ -12,6 +12,6 @@ nouvel ADR qui le déclare « remplacé ».
 | [0004](0004-hachage-des-cles-et-des-mots-de-passe.md) | Clés d'API en HMAC-SHA-256 + pepper, mots de passe en Argon2id | accepté |
 | [0005](0005-idempotence-des-requetes.md) | Idempotence en base, dans la transaction de l'effet | accepté |
 | [0006](0006-limitation-de-debit.md) | Limitation de débit : fenêtre glissante exacte (Redis + Lua) | accepté |
-| 0007 | Routage, disjoncteur et repli en cas de panne (opérateur, scoring) | à rédiger |
+| [0007](0007-routage-disjoncteur-et-bascule.md) | Routage, disjoncteur et bascule sans double débit | accepté |
 | 0008 | Politique de relance des webhooks | à rédiger |
 | 0009 | Traitement des relevés : Polars ou pandas | à rédiger |
