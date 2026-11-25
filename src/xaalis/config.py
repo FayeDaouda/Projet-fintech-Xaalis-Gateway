@@ -55,10 +55,29 @@ class Settings(BaseSettings):
     rate_limit_per_key_per_minute: int = Field(default=100, ge=1)
     rate_limit_intents_per_payer_per_minute: int = Field(default=20, ge=1)
 
+    # Lot 3 : opérateurs. La passerelle appelle le simulateur ; il rappelle l'API publique.
+    operators_base_url: str = "http://localhost:8100"
+    public_base_url: str = "http://localhost:8000"
+    operator_secret_gopay: SecretStr = SecretStr(f"{DEV_SECRET_PREFIX}gopay-callback-secret-0001")
+    operator_secret_teranga: SecretStr = SecretStr(
+        f"{DEV_SECRET_PREFIX}teranga-callback-secret-0001"
+    )
+    operator_secret_ndiaga: SecretStr = SecretStr(f"{DEV_SECRET_PREFIX}ndiaga-callback-secret-0001")
+    operator_connect_timeout_ms: int = Field(default=1_000, ge=50)
+    operator_read_timeout_ms: int = Field(default=3_000, ge=50)
+    breaker_failure_threshold: int = Field(default=5, ge=1)  # lot 3 : 5 échecs consécutifs
+    breaker_cooldown_seconds: int = Field(default=30, ge=1)  # lot 3 : semi-ouvert après 30 s
+
     log_level: LogLevel = "INFO"
     log_json: bool = True
 
-    @field_validator("api_key_pepper", "jwt_secret")
+    @field_validator(
+        "api_key_pepper",
+        "jwt_secret",
+        "operator_secret_gopay",
+        "operator_secret_teranga",
+        "operator_secret_ndiaga",
+    )
     @classmethod
     def _secret_is_long_enough(cls, value: SecretStr) -> SecretStr:
         if len(value.get_secret_value()) < MIN_SECRET_LENGTH:
@@ -70,12 +89,23 @@ class Settings(BaseSettings):
     def _forbid_dev_secrets_in_production(self) -> Self:
         if self.environment != "production":
             return self
-        for name in ("api_key_pepper", "jwt_secret", "seed_admin_password"):
+        for name in (
+            "api_key_pepper",
+            "jwt_secret",
+            "seed_admin_password",
+            "operator_secret_gopay",
+            "operator_secret_teranga",
+            "operator_secret_ndiaga",
+        ):
             secret: SecretStr = getattr(self, name)
             if secret.get_secret_value().startswith(DEV_SECRET_PREFIX):
                 msg = f"XAALIS_{name.upper()} doit être défini explicitement en production"
                 raise ValueError(msg)
         return self
+
+    def operator_secret(self, operator: str) -> str:
+        secret: SecretStr = getattr(self, f"operator_secret_{operator}")
+        return secret.get_secret_value()
 
 
 @lru_cache(maxsize=1)

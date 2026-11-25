@@ -19,6 +19,7 @@ TECHNICAL_MODULES_ALLOWED_FLOATS = frozenset(
         "api/routes/health.py",  # timeout des sondes
         "infra/healthcheck.py",  # timeout et âge du battement de cœur
         "observability/metrics.py",  # seuils des histogrammes Prometheus
+        "operators/client.py",  # timeouts et backoff des appels réseau
         "worker/runner.py",  # intervalle du battement de cœur
     }
 )

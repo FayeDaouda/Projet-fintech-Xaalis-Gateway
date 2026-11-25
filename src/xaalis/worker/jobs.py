@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from xaalis.idempotency.service import purge_expired
 from xaalis.observability.logging import get_logger
+from xaalis.operators.dispatcher import Dispatcher
 from xaalis.payments.service import expire_due_intents
 from xaalis.worker.runner import Job
 
@@ -58,3 +59,12 @@ def idempotency_purge_job(
             return await purge_expired(session)
 
     return periodic("purge_idempotency_keys", interval_seconds, step)
+
+
+def dispatch_job(dispatcher: Dispatcher, interval_seconds: int = 1) -> Job:
+    """Lot 3 : relaie les demandes de débit de l'outbox vers les opérateurs."""
+
+    async def step() -> int:
+        return await dispatcher.run_batch()
+
+    return periodic("dispatch_operator_charges", interval_seconds, step)

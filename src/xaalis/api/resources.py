@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from xaalis.config import Settings
 from xaalis.infra.db import create_engine, create_sessionmaker
 from xaalis.infra.ratelimit import RateLimiter
+from xaalis.routing.health import OperatorHealth
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +28,7 @@ class Resources:
     sessionmaker: async_sessionmaker[AsyncSession]
     redis: Redis
     rate_limiter: RateLimiter
+    operator_health: OperatorHealth
 
     @classmethod
     def from_settings(cls, settings: Settings) -> Resources:
@@ -38,6 +40,11 @@ class Resources:
             sessionmaker=create_sessionmaker(engine),
             redis=redis,
             rate_limiter=RateLimiter(redis),
+            operator_health=OperatorHealth(
+                redis,
+                failure_threshold=settings.breaker_failure_threshold,
+                cooldown_seconds=settings.breaker_cooldown_seconds,
+            ),
         )
 
     async def aclose(self) -> None:

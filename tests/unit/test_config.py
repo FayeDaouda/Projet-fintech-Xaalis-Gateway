@@ -20,8 +20,12 @@ def test_production_accepts_explicit_secrets() -> None:
         api_key_pepper=SecretStr("a" * 48),
         jwt_secret=SecretStr("b" * 48),
         seed_admin_password=SecretStr("an-explicit-admin-password"),
+        operator_secret_gopay=SecretStr("g" * 40),
+        operator_secret_teranga=SecretStr("t" * 40),
+        operator_secret_ndiaga=SecretStr("n" * 40),
     )
     assert settings.environment == "production"
+    assert settings.operator_secret("gopay") == "g" * 40
 
 
 def test_secrets_are_never_rendered_in_repr() -> None:
@@ -41,4 +45,14 @@ def test_production_refuses_the_dev_admin_password() -> None:
             environment="production",
             api_key_pepper=SecretStr("a" * 48),
             jwt_secret=SecretStr("b" * 48),
+        )
+
+
+def test_production_refuses_dev_operator_secrets() -> None:
+    with pytest.raises(ValidationError, match="XAALIS_OPERATOR_SECRET_GOPAY"):
+        Settings(
+            environment="production",
+            api_key_pepper=SecretStr("a" * 48),
+            jwt_secret=SecretStr("b" * 48),
+            seed_admin_password=SecretStr("an-explicit-admin-password"),
         )

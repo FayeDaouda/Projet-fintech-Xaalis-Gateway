@@ -122,13 +122,16 @@ async def confirm_payment_intent(
     request: Request,
     principal: SecretKeyDep,
     session: SessionDep,
+    resources: ResourcesDep,
     idempotency_key: IdempotencyKeyHeader = None,
 ) -> Response:
     key = require_key(idempotency_key)
+    # Disjoncteurs et taux de succès lus AVANT d'ouvrir la transaction (pas d'I/O sous verrou).
+    snapshot = await resources.operator_health.snapshot()
 
     async def effect() -> tuple[int, BaseModel]:
         intent = await payments.confirm_intent(
-            session, _scope(principal), intent_id, actor=_actor(principal)
+            session, _scope(principal), intent_id, actor=_actor(principal), snapshot=snapshot
         )
         return 202, PaymentIntentView.of(intent)
 

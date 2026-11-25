@@ -17,6 +17,11 @@ x-app: &app
     XAALIS_API_KEY_PEPPER: ${XAALIS_API_KEY_PEPPER:-dev-only-api-key-pepper-not-for-production}
     XAALIS_JWT_SECRET: ${XAALIS_JWT_SECRET:-dev-only-jwt-secret-not-for-production-use}
     XAALIS_LOG_LEVEL: ${XAALIS_LOG_LEVEL:-INFO}
+    XAALIS_OPERATORS_BASE_URL: http://operators:8100
+    XAALIS_PUBLIC_BASE_URL: http://api:8000
+    XAALIS_OPERATOR_SECRET_GOPAY: ${XAALIS_OPERATOR_SECRET_GOPAY:-dev-only-gopay-callback-secret-0001}
+    XAALIS_OPERATOR_SECRET_TERANGA: ${XAALIS_OPERATOR_SECRET_TERANGA:-dev-only-teranga-callback-secret-0001}
+    XAALIS_OPERATOR_SECRET_NDIAGA: ${XAALIS_OPERATOR_SECRET_NDIAGA:-dev-only-ndiaga-callback-secret-0001}
 
 services:
   db:
@@ -81,12 +86,17 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
+      operators: { condition: service_healthy }
 
   operators:
     <<: *app
     command: ["uvicorn", "xaalis_sim.operators.app:app", "--host", "0.0.0.0", "--port", "8100", "--no-access-log"]
     environment:
+      <<: *app-env
       XAALIS_HEALTHCHECK_URL: http://127.0.0.1:8100/healthz
+      # Fenêtres de panne périodiques de Ndiaga Cash (0 = désactivées ; /_chaos pour la démo).
+      XAALIS_SIM_NDIAGA_OUTAGE_EVERY_SECONDS: ${XAALIS_SIM_NDIAGA_OUTAGE_EVERY_SECONDS:-0}
+      XAALIS_SIM_NDIAGA_OUTAGE_DURATION_SECONDS: ${XAALIS_SIM_NDIAGA_OUTAGE_DURATION_SECONDS:-0}
     ports: ["8100:8100"]
 
   merchant-demo:
