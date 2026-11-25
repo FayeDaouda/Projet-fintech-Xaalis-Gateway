@@ -69,13 +69,25 @@ jobs:
   secrets:
     name: Scan de secrets (gitleaks)
     runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.24.3"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Binaire officiel plutôt que gitleaks-action : l'action calcule une plage de commits
+      # invalide au premier push d'une branche (before = 0000…) et ne scanne alors rien.
+      - name: Installer gitleaks (version figée, somme SHA-256 vérifiée)
+        run: |
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          cd "$RUNNER_TEMP"
+          curl -sSfLO "$base/$archive"
+          curl -sSfL "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt" | grep " $archive\$" | sha256sum -c -
+          tar -xzf "$archive" gitleaks
+      - name: Scanner tout l'historique git
+        run: |
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --exit-code 1 .
 
   compose:
     name: Démarrage sur machine propre (docker compose up --build)
