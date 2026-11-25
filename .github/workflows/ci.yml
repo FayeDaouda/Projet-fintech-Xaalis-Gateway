@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["projet-v*"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_FROZEN: "1"
+
+jobs:
+  lint:
+    name: Lint & typage (ruff, mypy --strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync
+      - run: uv run ruff check --output-format=github .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+
+  test:
+    name: Tests (PostgreSQL 16, Redis) + couverture ≥ 85 %
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: xaalis_test
+          POSTGRES_USER: xaalis
+          POSTGRES_PASSWORD: xaalis
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U xaalis -d xaalis_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      XAALIS_TEST_DATABASE_URL: postgresql+asyncpg://xaalis:xaalis@localhost:5432/xaalis_test
+      XAALIS_TEST_REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync
+      - run: uv run pytest --cov --cov-report=term --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
+
+  secrets:
+    name: Scan de secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  compose:
+    name: Démarrage sur machine propre (docker compose up --build)
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Démarrer la pile complète
+        run: docker compose up --build --detach --wait --wait-timeout 240
+      - name: Vérifier la disponibilité de l'API
+        run: |
+          curl --fail --silent --show-error http://localhost:8000/readyz
+          curl --fail --silent --show-error http://localhost:8100/healthz
+          curl --fail --silent --show-error http://localhost:8200/healthz
+      - name: Journaux en cas d'échec
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Arrêt
+        if: always()
+        run: docker compose down --volumes
