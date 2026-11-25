@@ -58,3 +58,14 @@ def test_equal_cost_is_broken_by_best_recent_success_rate(
     rates = {Operator.GOPAY: 990, Operator.NDIAGA: 950}
     assert rank_operators(phone, rates) == [Operator.GOPAY, Operator.NDIAGA]
     assert rank_operators(phone, {Operator.GOPAY: 900, Operator.NDIAGA: 950})[0] is Operator.NDIAGA
+
+
+def test_open_breakers_are_tried_last_but_never_dropped() -> None:
+    from xaalis.routing.catalog import RoutingSnapshot, plan_route
+
+    phone = "+221771234567"
+    assert plan_route(phone) == [Operator.NDIAGA, Operator.GOPAY]
+    snapshot = RoutingSnapshot(open_operators=frozenset({Operator.NDIAGA}))
+    assert plan_route(phone, snapshot) == [Operator.GOPAY, Operator.NDIAGA]
+    all_open = RoutingSnapshot(open_operators=frozenset({Operator.NDIAGA, Operator.GOPAY}))
+    assert plan_route(phone, all_open) == [Operator.NDIAGA, Operator.GOPAY]

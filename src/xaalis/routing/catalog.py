@@ -6,7 +6,7 @@ Les coûts sont en points de base (1 pb = 0,01 %) : des entiers, pas de flottant
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Final
 
@@ -58,3 +58,22 @@ def rank_operators(
         candidates,
         key=lambda op: (CATALOG[op].cost_bps, -rates.get(op, 1_000), op.value),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class RoutingSnapshot:
+    """État des opérateurs au moment de router (fourni par ``routing.health``)."""
+
+    open_operators: frozenset[Operator] = frozenset()
+    success_permille: Mapping[Operator, int] = field(default_factory=dict)
+
+
+def plan_route(phone: str, snapshot: RoutingSnapshot | None = None) -> list[Operator]:
+    """Ordre de tentative : classement coût puis taux de succès, disjoncteurs ouverts en dernier.
+
+    Un opérateur au disjoncteur ouvert n'est pas retiré : si tous les éligibles sont ouverts,
+    on garde un ordre de repli, et le worker réessaiera dès qu'un disjoncteur se refermera.
+    """
+    snap = snapshot or RoutingSnapshot()
+    ranked = rank_operators(phone, snap.success_permille)
+    return sorted(ranked, key=lambda op: op in snap.open_operators)  # tri stable
