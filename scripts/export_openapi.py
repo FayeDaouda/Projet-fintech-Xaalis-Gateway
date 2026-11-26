@@ -1,7 +1,7 @@
 """Exporte le contrat OpenAPI dans ``openapi.json`` (livrable versionné).
 
-    uv run python scripts/export_openapi.py          # régénère le fichier
-    uv run python scripts/export_openapi.py --check  # échoue s'il n'est pas à jour (CI)
+uv run python scripts/export_openapi.py          # régénère le fichier
+uv run python scripts/export_openapi.py --check  # échoue s'il n'est pas à jour (CI)
 """
 
 from __future__ import annotations
@@ -23,7 +23,9 @@ def main() -> int:
     content = render()
     if "--check" in sys.argv:
         if not TARGET.exists() or TARGET.read_text() != content:
-            sys.stderr.write("openapi.json n'est pas à jour : uv run python scripts/export_openapi.py\n")
+            sys.stderr.write(
+                "openapi.json n'est pas à jour : uv run python scripts/export_openapi.py\n"
+            )
             return 1
         return 0
     TARGET.write_text(content)
