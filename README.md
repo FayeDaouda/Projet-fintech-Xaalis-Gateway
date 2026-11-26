@@ -228,6 +228,33 @@ uv run pytest --cov          # tests (PostgreSQL réel) + couverture ≥ 85 %
 uv run pytest tests/unit     # tests unitaires seuls, sans Docker
 ```
 
+## Contrat d'API (OpenAPI + Schemathesis)
+
+Le contrat publié sur `/openapi.json` est versionné dans [`openapi.json`](openapi.json) ; la
+CI échoue s'il n'est pas à jour (`uv run python scripts/export_openapi.py`). Il est vérifié
+par Schemathesis avec **toutes** ses vérifications, contre la pile Docker réelle :
+
+```bash
+docker compose up -d --build
+./scripts/schemathesis.sh http://localhost:8000 100   # JWT admin et clé marchand obtenus automatiquement
+```
+
+Le hook [`tests/contract/schemathesis_hooks.py`](tests/contract/schemathesis_hooks.py) se
+comporte comme un client correct : bonne authentification par route, `Idempotency-Key`
+unique, signature HMAC des remboursements et virements. Résultat : 0 erreur 500, 0 écart de
+contrat (≈ 4 000 cas, phases Examples, Coverage, Fuzzing et Stateful), avec ou sans
+limitation de débit.
+
+Points de contrat notables :
+
+- toute erreur est `application/problem+json`, y compris 400/413/422 du framework ;
+- un nombre JSON entier comme `1420.0` est un entier (JSON Schema) : accepté et stocké en
+  `int` exact ; `1420.5`, `"1420"` et `true` sont refusés ;
+- les caractères non stockables en UTF-8/PostgreSQL (`\u0000`, demi-paires UTF-16) sont
+  remplacés par `U+FFFD` à l'entrée, longueur préservée ;
+- corps limités à 1 Mio (5 Mio pour `POST /v1/admin/reconciliations/statements`) : 413 ;
+- une `Idempotency-Key` manquante vaut 400 **avant** toute authentification ou limite de débit.
+
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — modules et dépendances
