@@ -6,7 +6,7 @@ du marchand exécute la requête correspondante (même principe que les « persi
 
 INTENT_FIELDS = """
   id status operator amount fee net amountRefunded currency payerPhone metadata
-  createdAt succeededAt
+  createdAt succeededAt riskScore riskDecision
 """
 
 PAYMENTS = f"""

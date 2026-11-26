@@ -1,7 +1,7 @@
 // Paiements : liste filtrable (GraphQL, pagination par curseur), détail et remboursement.
 
 import { api, newIdempotencyKey } from "../api.js";
-import { CAUSES, OPERATORS, STATUSES, amount, busyButton, closeLayer, copyButton, drawer, emptyState, fmt, h, icon, operator, problemToast, skeletonRows, statusPill, toast } from "../ui.js";
+import { CAUSES, OPERATORS, STATUSES, amount, busyButton, closeLayer, copyButton, drawer, emptyState, fmt, h, icon, operator, problemToast, riskPill, skeletonRows, statusPill, toast } from "../ui.js";
 
 const filters = { status: "", operator: "" };
 const REFUNDABLE = new Set(["succeeded", "partially_refunded"]);
@@ -111,6 +111,7 @@ export async function render(root, { params }) {
       h("section", null, h("h3", null, "Détails"),
         h("dl", { class: "kv" },
           h("dt", null, "Opérateur"), h("dd", null, operator(p.operator)),
+          h("dt", null, "Anti-fraude"), h("dd", null, riskPill(p.risk_decision, p.risk_score)),
           h("dt", null, "Payeur"), h("dd", { class: "mono" }, p.payer_phone),
           h("dt", null, "Commission Xaalis"), h("dd", null, amount(p.fee)),
           h("dt", null, "Net marchand"), h("dd", null, amount(p.net)),

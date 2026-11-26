@@ -1,7 +1,7 @@
 // Boutique : panier, paiement Mobile Money, suivi en direct par SSE jusqu'au reçu.
 
 import { api, newIdempotencyKey } from "../api.js";
-import { CAUSES, OPERATORS, amount, copyButton, fmt, h, icon, operator, problemToast, s } from "../ui.js";
+import { CAUSES, OPERATORS, amount, copyButton, fmt, h, icon, operator, problemToast, riskPill, s } from "../ui.js";
 
 const PRODUCTS = [
   { id: "wax", name: "Pagne wax Ndar", desc: "Coton imprimé, 6 yards, motifs de Saint-Louis.", price: 12500, art: "art-wax", tag: "Best-seller",
@@ -129,7 +129,7 @@ export async function render(root) {
             h("div", { class: "input-group" }, h("span", { class: "addon lg" }, "🇸🇳 +221"), input),
             hint),
           h("div", { class: "chips", "aria-label": "Numéros de test" },
-            [["781234512", "78 · Go Pay"], ["771234599", "77 · Ndiaga / Go Pay"], ["761234567", "76 · Teranga"]].map(([n, label]) =>
+            [["781234512", "78 · Go Pay"], ["771234599", "77 · Ndiaga / Go Pay"], ["761234567", "76 · Teranga"], ["770000000", "77 000 00 00 · signalé"]].map(([n, label]) =>
               h("button", { type: "button", class: "chip", onclick: () => { phone = n; paint(); } }, icon("zap", { width: 12, height: 12 }), label))),
           payBtn,
           h("p", { class: "subtle", style: { fontSize: "12px", textAlign: "center" } },
@@ -233,10 +233,10 @@ export async function render(root) {
 
     const steps = [
       { key: "created", title: "Commande enregistrée", detail: c.intent ? h("span", null, copyButton(c.intent.id)) : "Création de l'intent…", at: c.events.find((e) => e.status === "created")?.at },
-      { key: "processing", title: "Transmise à l'opérateur",
+      { key: "processing", title: "Opérateur choisi",
         detail: detail?.operator ? h("span", null, "Routage Xaalis → ", operator(detail.operator), failover ? h("span", { class: "pill warn", style: { marginLeft: "6px" } }, icon("route"), "bascule") : null) : "Choix de l'opérateur le moins cher et disponible",
         at: c.events.find((e) => e.status === "processing")?.at },
-      { key: "waiting", title: "Validation par le client", detail: success ? "Code secret saisi sur le téléphone" : "Le client confirme sur son téléphone…" },
+      { key: "waiting", title: "Validation par le client", detail: success ? "Code secret saisi sur le téléphone" : failed ? "Étape non atteinte" : "Le client confirme sur son téléphone…" },
       { key: "final", title: success ? "Paiement confirmé" : failed ? "Paiement non abouti" : "Confirmation", detail: success ? "Callback opérateur reçu et vérifié" : failed ? (c.error?.detail || CAUSES[c.events.at(-1)?.cause] || "") : "", at: success || failed ? c.events.at(-1)?.at : null },
     ];
     const state = (key) => {
@@ -272,6 +272,7 @@ export async function render(root) {
             h("dt", null, "Commission Xaalis"), h("dd", null, amount(detail.fee)),
             h("dt", null, "Net marchand"), h("dd", null, h("strong", null, amount(detail.net))),
             h("dt", null, "Opérateur"), h("dd", null, operator(detail.operator)),
+            h("dt", null, "Anti-fraude"), h("dd", null, riskPill(detail.risk_decision, detail.risk_score)),
             h("dt", null, "Payeur"), h("dd", { class: "mono" }, detail.payer_phone),
             h("dt", null, "Webhook payment.succeeded"), h("dd", null, c.webhook
               ? h("span", { class: "pill ok", title: "Signature HMAC vérifiée par le serveur marchand" }, icon("check"), "reçu et vérifié")
@@ -282,6 +283,11 @@ export async function render(root) {
           h("a", { class: "btn sm ghost", href: `#/paiements/${detail.id}` }, "Voir dans les paiements", icon("arrowRight")),
           h("button", { type: "button", class: "btn sm primary", onclick: () => { checkout = null; paint(); } }, icon("plus"), "Nouvelle commande"))));
     } else if (failed) {
+      if (detail?.risk_decision === "decline") {
+        panels.push(h("div", { class: "callout bad fade-in" }, icon("shield"),
+          h("div", null, h("strong", null, "Bloqué par l'anti-fraude. "),
+            `Score ${detail.risk_score ?? "—"} ‰ calculé par le service gRPC de scoring (deadline 150 ms), avant tout débit : le client n'a rien payé.`)));
+      }
       panels.push(h("div", { class: "row", style: { justifyContent: "flex-end" } },
         h("button", { type: "button", class: "btn", onclick: () => { checkout = null; paint(); } }, icon("refresh"), "Réessayer")));
     }

@@ -155,7 +155,23 @@ export const CAUSES = {
   expire: "Expiré (15 min)",
   refund_partial: "Remboursement partiel",
   refund_full: "Remboursement total",
+  risk_assessed: "Évalué par l'anti-fraude",
+  risk_declined: "Refusé par l'anti-fraude",
 };
+
+export const RISK = {
+  approve: { label: "Risque faible", tone: "ok", icon: "shield" },
+  review: { label: "À surveiller", tone: "warn", icon: "alert" },
+  decline: { label: "Refusé (fraude)", tone: "bad", icon: "x" },
+};
+
+// Évaluation anti-fraude (service gRPC, ADR 0013) : décision, score en ‰, ou repli.
+export function riskPill(decision, score) {
+  if (!decision) return h("span", { class: "subtle" }, "—");
+  const meta = RISK[decision] || { label: decision, tone: "", icon: "shield" };
+  return h("span", { class: `pill ${meta.tone}`, title: "Service gRPC de scoring · deadline 150 ms" }, icon(meta.icon), meta.label,
+    h("span", { style: { opacity: 0.75 } }, score == null ? " · repli" : ` · ${score} ‰`));
+}
 
 // ------------------------------------------------------------------ interactions
 export function copyButton(text, label = text) {
