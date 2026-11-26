@@ -19,6 +19,7 @@ TECHNICAL_MODULES_ALLOWED_FLOATS = frozenset(
         "api/openapi.py",  # bornes flottantes produites par FastAPI, normalisées en entiers
         "api/routes/health.py",  # timeout des sondes
         "infra/healthcheck.py",  # timeout et âge du battement de cœur
+        "merchants/key_cache.py",  # horloge monotone du cache des clés
         "observability/metrics.py",  # seuils des histogrammes Prometheus
         "operators/client.py",  # timeouts et backoff des appels réseau
         "worker/runner.py",  # intervalle du battement de cœur

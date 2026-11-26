@@ -67,6 +67,7 @@ def settings(migrated_database_url: str, redis_url: str) -> Settings:
         redis_url=redis_url,
         log_json=False,
         log_level="WARNING",
+        api_key_cache_seconds=0,  # les tests révoquent des clés et attendent un effet immédiat
     )
 
 

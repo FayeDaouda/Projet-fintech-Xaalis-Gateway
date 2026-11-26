@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     demo_test_publishable_key: SecretStr | None = None
     demo_test_secret_key: SecretStr | None = None
 
+    # Cache des clés authentifiées, par processus (0 = désactivé). Voir docs/load-test.md.
+    api_key_cache_seconds: int = Field(default=5, ge=0, le=60)
+
     # OWASP API4 : taille maximale d'un corps de requête.
     max_body_bytes: int = Field(default=1024 * 1024, ge=1024)
 

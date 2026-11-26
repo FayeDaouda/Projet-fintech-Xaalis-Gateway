@@ -39,6 +39,7 @@ class MerchantPrincipal:
     livemode: bool
     key_id: str
     kind: KeyKind
+    key_expires_at: datetime | None = None  # échéance d'une clé en période de grâce
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +141,11 @@ async def authenticate_key(
     if not (hmac.compare_digest(row.fingerprint, digest) and consistent):
         return None
     return MerchantPrincipal(
-        merchant_id=row.merchant_id, livemode=row.livemode, key_id=row.id, kind=parsed.kind
+        merchant_id=row.merchant_id,
+        livemode=row.livemode,
+        key_id=row.id,
+        kind=parsed.kind,
+        key_expires_at=row.expires_at,
     )
 
 

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from xaalis.config import Settings
 from xaalis.infra.db import create_engine, create_sessionmaker
 from xaalis.infra.ratelimit import RateLimiter
+from xaalis.merchants.key_cache import PrincipalCache
 from xaalis.routing.health import OperatorHealth
 
 
@@ -29,6 +30,7 @@ class Resources:
     redis: Redis
     rate_limiter: RateLimiter
     operator_health: OperatorHealth
+    key_cache: PrincipalCache
 
     @classmethod
     def from_settings(cls, settings: Settings) -> Resources:
@@ -45,6 +47,7 @@ class Resources:
                 failure_threshold=settings.breaker_failure_threshold,
                 cooldown_seconds=settings.breaker_cooldown_seconds,
             ),
+            key_cache=PrincipalCache(settings.api_key_cache_seconds),
         )
 
     async def aclose(self) -> None:
@@ -52,7 +55,9 @@ class Resources:
         await self.engine.dispose()
 
 
-def get_resources(request: Request) -> Resources:
+async def get_resources(request: Request) -> Resources:
+    # async def et non def : FastAPI exécute les dépendances synchrones dans un pool de
+    # threads, ce qui ajouterait un aller-retour boucle ↔ thread à chaque requête.
     resources: Resources = request.app.state.resources
     return resources
 

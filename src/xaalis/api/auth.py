@@ -27,7 +27,7 @@ from xaalis.admin.tokens import (
 from xaalis.api.problems import ProblemError
 from xaalis.api.resources import Resources, ResourcesDep
 from xaalis.core.signatures import SignatureFailure, verify
-from xaalis.merchants.keys import KeyKind
+from xaalis.merchants.keys import KeyKind, fingerprint
 from xaalis.merchants.service import MerchantPrincipal, authenticate_key
 
 TIMESTAMP_HEADER = "X-Xaalis-Timestamp"
@@ -84,13 +84,15 @@ async def _authenticate_merchant(
 ) -> MerchantPrincipal:
     if credentials is None:
         raise ProblemError(401, "unauthenticated", "Clé d'API requise.", headers=_API_CHALLENGE)
-    # Session dédiée et courte : la route garde la maîtrise de sa propre transaction.
-    async with resources.sessionmaker() as session:
-        principal = await authenticate_key(
-            session,
-            credentials.credentials,
-            pepper=resources.settings.api_key_pepper.get_secret_value(),
-        )
+    pepper = resources.settings.api_key_pepper.get_secret_value()
+    digest = fingerprint(pepper, credentials.credentials)
+    principal = resources.key_cache.get(digest)
+    if principal is None:
+        # Session dédiée et courte : la route garde la maîtrise de sa propre transaction.
+        async with resources.sessionmaker() as session:
+            principal = await authenticate_key(session, credentials.credentials, pepper=pepper)
+        if principal is not None:
+            resources.key_cache.put(digest, principal)
     if principal is None:
         raise ProblemError(
             401,
