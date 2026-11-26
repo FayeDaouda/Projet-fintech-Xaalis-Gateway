@@ -18,6 +18,7 @@ from xaalis.api.resources import Resources
 from xaalis.api.routes import (
     admin,
     api_keys,
+    graphql,
     health,
     operators,
     payment_intents,
@@ -28,6 +29,7 @@ from xaalis.api.routes import (
 )
 from xaalis.config import Settings, get_settings
 from xaalis.observability.logging import configure_logging, get_logger
+from xaalis.realtime.broker import EventBroker
 
 _log = get_logger(__name__)
 
@@ -47,10 +49,13 @@ def create_app(settings: Settings | None = None, resources: Resources | None = N
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         owned = resources is None
         app.state.resources = resources or Resources.from_settings(settings)
+        app.state.broker = EventBroker(settings.database_url)
+        await app.state.broker.start()
         _log.info("api_started", environment=settings.environment, version=__version__)
         try:
             yield
         finally:
+            await app.state.broker.stop()
             if owned:
                 await app.state.resources.aclose()
             _log.info("api_stopped")
@@ -74,4 +79,7 @@ def create_app(settings: Settings | None = None, resources: Resources | None = N
     app.include_router(refunds.router)
     app.include_router(payouts.router)
     app.include_router(webhooks.router)
+    app.include_router(
+        graphql.build_router(enable_ide=settings.environment != "production"), prefix="/graphql"
+    )
     return app
