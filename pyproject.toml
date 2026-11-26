@@ -37,6 +37,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
     "pytest-cov>=6.0",
+    "pytest-timeout>=2.3",
     "ruff>=0.8",
     "schemathesis>=4",
     "testcontainers[postgres,redis]>=4.8",
@@ -123,6 +124,10 @@ addopts = ["-ra", "--strict-markers", "--strict-config"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+# Filet de sécurité : un test bloqué échoue au bout de 120 s en affichant la pile de tous
+# les threads, au lieu de figer la CI.
+timeout = 120
+timeout_method = "thread"
 filterwarnings = ["error"]
 
 [tool.coverage.run]
