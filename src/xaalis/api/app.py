@@ -21,6 +21,8 @@ from xaalis.api.routes import (
     health,
     operators,
     payment_intents,
+    payouts,
+    reconciliation,
     refunds,
     webhooks,
 )
@@ -65,9 +67,11 @@ def create_app(settings: Settings | None = None, resources: Resources | None = N
     app.include_router(health.router)
     app.include_router(admin.auth_router)
     app.include_router(admin.router)
+    app.include_router(reconciliation.router)
     app.include_router(api_keys.router)
     app.include_router(payment_intents.router)
     app.include_router(operators.router)
     app.include_router(refunds.router)
+    app.include_router(payouts.router)
     app.include_router(webhooks.router)
     return app

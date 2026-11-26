@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import os
+from datetime import date
 from pathlib import Path
 
 import httpx
@@ -12,6 +13,7 @@ from redis.asyncio import Redis
 
 import xaalis.models  # noqa: F401 — enregistre TOUS les modèles ORM (clés étrangères)
 from xaalis.config import get_settings
+from xaalis.core.operators import Operator
 from xaalis.infra.db import create_engine, create_sessionmaker
 from xaalis.observability.logging import configure_logging, get_logger
 from xaalis.operators.client import OperatorClient, build_http_client
@@ -22,6 +24,8 @@ from xaalis.worker.jobs import (
     dispatch_job,
     expiry_job,
     idempotency_purge_job,
+    nightly_job,
+    reconciliation_job,
     webhook_delivery_job,
     webhook_fanout_job,
 )
@@ -64,6 +68,12 @@ async def main() -> None:
         encryption_key=settings.webhook_encryption_key.get_secret_value(),
         schedule=settings.webhook_retry_schedule_seconds,
     )
+
+    async def fetch_statement(operator: Operator, day: date) -> bytes:
+        response = await http.get(f"/{operator.value}/statements/{day.isoformat()}.csv")
+        response.raise_for_status()
+        return response.content
+
     jobs: list[Job] = [
         functools.partial(heartbeat, path=heartbeat_path),
         dispatch_job(dispatcher),
@@ -71,6 +81,8 @@ async def main() -> None:
         idempotency_purge_job(sessionmaker),
         webhook_fanout_job(sessionmaker),
         webhook_delivery_job(deliverer),
+        reconciliation_job(sessionmaker, fetch_statement),
+        nightly_job(sessionmaker),
     ]
     log.info("worker_started", environment=settings.environment, jobs=len(jobs))
     try:

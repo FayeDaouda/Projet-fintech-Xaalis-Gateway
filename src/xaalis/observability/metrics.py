@@ -48,3 +48,8 @@ WEBHOOK_DELIVERIES = Gauge(
     "Livraisons de webhooks par statut (pending = profondeur de la file, dead_letter).",
     labelnames=("status",),
 )
+RECONCILIATION_DISCREPANCIES = Gauge(
+    "xaalis_reconciliation_discrepancies",
+    "Écarts du dernier rapprochement terminé de chaque opérateur, par type.",
+    labelnames=("operator", "type"),
+)

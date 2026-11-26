@@ -8,6 +8,7 @@ le travail, et après un redémarrage. Une erreur ne doit jamais casser ``/metri
 from __future__ import annotations
 
 from sqlalchemy import case, func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from xaalis.core.operators import Operator
@@ -17,12 +18,14 @@ from xaalis.observability.metrics import (
     OUTBOX_PENDING,
     PAYMENT_INTENTS,
     RECONCILIATION_ALERTS,
+    RECONCILIATION_DISCREPANCIES,
     WEBHOOK_DELIVERIES,
 )
 from xaalis.operators.models import ReconciliationAlert
 from xaalis.outbox.models import OutboxMessage
 from xaalis.outbox.service import INTERNAL_PREFIX
 from xaalis.payments.models import PaymentIntent
+from xaalis.reconciliation.models import ReconciliationLine, ReconciliationRun
 from xaalis.routing.health import BreakerState, OperatorHealth
 from xaalis.webhooks.models import WebhookDelivery
 
@@ -75,6 +78,26 @@ async def refresh_business_metrics(
                 WEBHOOK_DELIVERIES.labels(status=name).set(0)
             for name, count in deliveries:
                 WEBHOOK_DELIVERIES.labels(status=name).set(count)
+            latest = (
+                select(ReconciliationRun.id)
+                .where(ReconciliationRun.status == "completed")
+                .ext(distinct_on(ReconciliationRun.operator))
+                .order_by(
+                    ReconciliationRun.operator,
+                    ReconciliationRun.statement_date.desc(),
+                    ReconciliationRun.created_at.desc(),
+                )
+                .scalar_subquery()
+            )
+            gaps = await session.execute(
+                select(ReconciliationRun.operator, ReconciliationLine.outcome, func.count())
+                .join(ReconciliationLine, ReconciliationLine.run_id == ReconciliationRun.id)
+                .where(ReconciliationRun.id.in_(latest), ReconciliationLine.outcome != "matched")
+                .group_by(ReconciliationRun.operator, ReconciliationLine.outcome)
+            )
+            RECONCILIATION_DISCREPANCIES.clear()
+            for gap_operator, outcome, count in gaps:
+                RECONCILIATION_DISCREPANCIES.labels(operator=gap_operator, type=outcome).set(count)
             RECONCILIATION_ALERTS.clear()
             for kind, count in alerts:
                 RECONCILIATION_ALERTS.labels(kind=kind).set(count)
