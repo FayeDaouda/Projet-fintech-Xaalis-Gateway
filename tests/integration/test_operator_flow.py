@@ -96,6 +96,10 @@ async def _platform(
     )
     for operator in ("gopay", "teranga", "ndiaga"):  # comportement déterministe
         await platform.chaos(operator, latency_ms=[0, 0], failure_rate=0, duplicate_rate=0)
+    # Indépendance vis-à-vis de l'ordre des tests : les paiements confirmés par d'autres tests
+    # (sans worker) sont traités d'abord, pour que run() ne serve que ceux de ce test.
+    while await platform.dispatcher.run_batch(limit=100):
+        await platform.sim.drain()
     transport.calls.clear()
     yield platform
     await sim_http.aclose()
