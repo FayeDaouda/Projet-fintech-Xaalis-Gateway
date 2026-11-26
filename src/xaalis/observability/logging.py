@@ -139,6 +139,10 @@ def configure_logging(*, service: str, level: str = "INFO", json_output: bool = 
         uvicorn_logger.propagate = True
     # Le journal d'accès est produit par notre middleware (avec request_id et durée).
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    # httpx/httpcore journalisent chaque requête sortante en INFO : doublon de nos propres
+    # événements structurés (charge_accepted, webhook_delivered…), et bruit à fort volume.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
