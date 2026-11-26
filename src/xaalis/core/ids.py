@@ -20,6 +20,7 @@ IdPrefix = Literal[
     "ltx",  # transaction comptable
     "key",  # clé d'API
     "adm",  # administrateur
+    "rec",  # rapprochement
 ]
 
 
