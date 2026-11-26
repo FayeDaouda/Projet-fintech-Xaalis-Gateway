@@ -31,20 +31,29 @@ SPECIFICATION = {
     (S.PARTIALLY_REFUNDED, E.REFUND_PARTIAL): S.PARTIALLY_REFUNDED,
     (S.PARTIALLY_REFUNDED, E.REFUND_FULL): S.REFUNDED,
 }
+# Seule extension : un second déclencheur pour une arête existante de l'énoncé (ADR 0013).
+EXTENSIONS = {(S.PROCESSING, E.RISK_DECLINED): S.FAILED}
+ALLOWED = SPECIFICATION | EXTENSIONS
 ALL_PAIRS = list(itertools.product(IntentStatus, IntentEvent))
 
 
 def test_transition_table_matches_the_specification_exactly() -> None:
-    assert dict(TRANSITIONS) == SPECIFICATION
+    assert dict(TRANSITIONS) == ALLOWED
+
+
+def test_extensions_add_no_state_and_no_edge_to_the_specification() -> None:
+    spec_edges = {(src, dst) for (src, _), dst in SPECIFICATION.items()}
+    table_edges = {(src, dst) for (src, _), dst in TRANSITIONS.items()}
+    assert table_edges == spec_edges
 
 
 @pytest.mark.parametrize(("status", "event"), ALL_PAIRS, ids=lambda v: str(v))
 def test_every_state_event_pair_is_either_allowed_or_rejected_with_409(
     status: IntentStatus, event: IntentEvent
 ) -> None:
-    """56 couples (8 états × 7 événements) : aucun cas n'est laissé au hasard."""
-    if (status, event) in SPECIFICATION:
-        assert next_status(status, event) is SPECIFICATION[(status, event)]
+    """64 couples (8 états × 8 événements) : aucun cas n'est laissé au hasard."""
+    if (status, event) in ALLOWED:
+        assert next_status(status, event) is ALLOWED[(status, event)]
     else:
         with pytest.raises(InvalidTransitionError) as excinfo:
             next_status(status, event)
@@ -76,6 +85,6 @@ def test_property_no_event_sequence_escapes_the_state_machine(events: list[Inten
         except InvalidTransitionError:
             continue
         assert status not in TERMINAL_STATUSES
-        assert (status, event) in SPECIFICATION
+        assert (status, event) in ALLOWED
         assert following in IntentStatus
         status = following

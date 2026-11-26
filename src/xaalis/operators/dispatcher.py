@@ -7,6 +7,10 @@ précédent n'a rien débité** (voir ``client.ChargeStatus`` et ADR 0007) :
 - disjoncteur ouvert (rien envoyé), 503, connexion refusée, 4xx → opérateur suivant ;
 - réponse ambiguë (timeout, 500…) → l'intent est **épinglé** à cet opérateur : les reprises
   ne visent que lui, avec la même référence, qu'il déduplique. Jamais de second débit.
+
+Avant le premier envoi, le paiement passe une fois par la barrière anti-fraude (gRPC,
+deadline 150 ms, ADR 0013) : refus → ``failed`` sans débit ; service indisponible →
+repli (petits montants acceptés, gros montants mis en attente).
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ from xaalis.outbox.models import OutboxMessage
 from xaalis.payments import service as payments
 from xaalis.payments.models import PaymentIntent
 from xaalis.payments.state_machine import IntentStatus
+from xaalis.risk.gate import RiskQuery, RiskScorer
 from xaalis.routing.health import OperatorHealth
 
 _log = get_logger(__name__)
@@ -44,10 +49,12 @@ class Dispatcher:
         sessionmaker: async_sessionmaker[AsyncSession],
         client: OperatorClient,
         health: OperatorHealth,
+        risk: RiskScorer | None = None,
     ) -> None:
         self._sessionmaker = sessionmaker
         self._client = client
         self._health = health
+        self._risk = risk  # None : pas de barrière (tests du routage seul)
 
     async def run_batch(self, *, limit: int = 20) -> int:
         async with self._sessionmaker.begin() as session:
@@ -72,6 +79,9 @@ class Dispatcher:
             intent = await session.get(PaymentIntent, message.aggregate_id)
         if intent is None or intent.status != IntentStatus.PROCESSING.value:
             await self._complete(message)
+            return
+        needs_screening = self._risk is not None and intent.risk_decision is None
+        if needs_screening and not await self._screen(message, intent):
             return
 
         for operator in self._attempt_order(intent, message):
@@ -112,6 +122,41 @@ class Dispatcher:
             _log.warning("operator_failover", operator=operator.value, reason=result.detail)
 
         await self._retry(message, "aucun opérateur disponible")
+
+    async def _screen(self, message: OutboxMessage, intent: PaymentIntent) -> bool:
+        """Barrière anti-fraude, hors transaction (aucun appel réseau sous verrou).
+
+        Renvoie ``True`` si le débit peut partir, ``False`` si le message a été traité
+        (refus définitif) ou replanifié (attente du service de scoring).
+        """
+        assert self._risk is not None  # noqa: S101 — garanti par l'appelant
+        verdict = await self._risk.score(
+            RiskQuery(
+                intent_id=intent.id,
+                merchant_id=intent.merchant_id,
+                livemode=intent.livemode,
+                amount=intent.amount,
+                payer_phone=intent.payer_phone,
+            )
+        )
+        if verdict.decision is None:  # repli « attente » : rien n'est envoyé
+            await self._retry(message, "risque : service de scoring indisponible")
+            return False
+        async with self._sessionmaker.begin() as session:
+            assessed = await payments.apply_risk_verdict(
+                session,
+                intent.id,
+                decision=verdict.decision.value,
+                source=verdict.source.value,
+                score_permille=verdict.score_permille,
+                reasons=verdict.reasons,
+                actor="system:risk",
+            )
+        if assessed.status != IntentStatus.PROCESSING.value:
+            _log.info("charge_skipped_after_risk", status=assessed.status)
+            await self._complete(message)
+            return False
+        return True
 
     @staticmethod
     def _attempt_order(intent: PaymentIntent, message: OutboxMessage) -> list[Operator]:

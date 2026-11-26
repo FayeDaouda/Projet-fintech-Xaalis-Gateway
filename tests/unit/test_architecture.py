@@ -11,7 +11,9 @@ from pathlib import Path
 
 import pytest
 
-PACKAGE = Path(__file__).resolve().parents[2] / "src" / "xaalis"
+SRC = Path(__file__).resolve().parents[2] / "src"
+PACKAGE = SRC / "xaalis"
+RISK_SERVICE = SRC / "xaalis_risk"  # microservice de scoring : règles métier, donc vérifié aussi
 
 TECHNICAL_MODULES_ALLOWED_FLOATS = frozenset(
     {
@@ -38,16 +40,15 @@ def _float_usages(tree: ast.AST) -> list[int]:
 
 
 def _domain_modules() -> list[Path]:
-    return sorted(
+    gateway = (
         path
         for path in PACKAGE.rglob("*.py")
         if path.relative_to(PACKAGE).as_posix() not in TECHNICAL_MODULES_ALLOWED_FLOATS
     )
+    return sorted([*gateway, *RISK_SERVICE.rglob("*.py")])
 
 
-@pytest.mark.parametrize(
-    "module", _domain_modules(), ids=lambda p: p.relative_to(PACKAGE).as_posix()
-)
+@pytest.mark.parametrize("module", _domain_modules(), ids=lambda p: p.relative_to(SRC).as_posix())
 def test_xg01_no_float_in_domain(module: Path) -> None:
     usages = _float_usages(ast.parse(module.read_text(), filename=str(module)))
     assert not usages, f"float interdit (XG-01) dans {module.name}, lignes {usages}"

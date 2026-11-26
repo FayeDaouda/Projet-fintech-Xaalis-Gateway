@@ -1,0 +1,38 @@
+// Scoring de risque des paiements : microservice gRPC interne (bonus du lot 7, ADR 0013).
+//
+// Appelé par le worker juste avant l'envoi d'un débit à l'opérateur, avec une deadline de
+// 150 ms. Tous les nombres sont entiers (XG-01) : montants en XOF, score en pour mille.
+//
+// Code Python généré par scripts/generate_grpc.py dans src/xaalis/risk/v1/ (versionné,
+// vérifié en CI : le code généré doit correspondre à ce fichier).
+
+syntax = "proto3";
+
+package xaalis.risk.v1;
+
+service RiskScoring {
+  // Évalue un paiement. Idempotent et sans effet de bord sur la passerelle.
+  rpc Score(ScoreRequest) returns (ScoreResponse);
+}
+
+message ScoreRequest {
+  string payment_intent_id = 1;
+  string merchant_id = 2;
+  bool livemode = 3;
+  int64 amount = 4;          // XOF, entier (XG-01)
+  string currency = 5;       // toujours "XOF" (XG-02)
+  string payer_phone = 6;    // E.164 ; jamais journalisé en clair par le service (XG-03)
+}
+
+enum Decision {
+  DECISION_UNSPECIFIED = 0;
+  DECISION_APPROVE = 1;      // risque faible : le paiement continue
+  DECISION_REVIEW = 2;       // risque moyen : le paiement continue, signalé au marchand
+  DECISION_DECLINE = 3;      // risque élevé : le paiement échoue avant tout débit
+}
+
+message ScoreResponse {
+  uint32 score_permille = 1; // 0 à 1000
+  Decision decision = 2;
+  repeated string reasons = 3; // codes stables, ex. "amount_high", "payer_blocklisted"
+}

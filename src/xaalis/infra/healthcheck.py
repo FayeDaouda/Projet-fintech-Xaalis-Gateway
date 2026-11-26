@@ -2,7 +2,8 @@
 
 - ``XAALIS_HEALTHCHECK_URL`` : interroge un endpoint HTTP (api, simulateurs) ;
 - ``XAALIS_HEALTHCHECK_FILE`` : vérifie la fraîcheur du battement de cœur écrit par
-  le worker, qui n'expose pas de port.
+  le worker, qui n'expose pas de port ;
+- ``XAALIS_HEALTHCHECK_GRPC`` : protocole de santé gRPC standard (service de scoring).
 
 Code de sortie 0 = sain, 1 = malade (convention Docker).
 """
@@ -36,13 +37,31 @@ def check_heartbeat(path: Path, max_age: float = MAX_HEARTBEAT_AGE_SECONDS) -> b
         return False
 
 
+def check_grpc(target: str, timeout: float = 2.0) -> bool:
+    if not target.startswith(("127.0.0.1:", "localhost:")):
+        return False  # la sonde ne parle qu'au processus local
+    import grpc  # import paresseux : seul le service gRPC en a besoin
+    from grpc_health.v1 import health_pb2, health_pb2_grpc
+
+    with grpc.insecure_channel(target) as channel:
+        try:
+            response = health_pb2_grpc.HealthStub(channel).Check(
+                health_pb2.HealthCheckRequest(service=""), timeout=timeout
+            )
+        except grpc.RpcError:
+            return False
+    return bool(response.status == health_pb2.HealthCheckResponse.SERVING)
+
+
 def main() -> int:
     heartbeat = os.environ.get("XAALIS_HEALTHCHECK_FILE")
-    healthy = (
-        check_heartbeat(Path(heartbeat))
-        if heartbeat
-        else check_url(os.environ.get("XAALIS_HEALTHCHECK_URL", DEFAULT_URL))
-    )
+    grpc_target = os.environ.get("XAALIS_HEALTHCHECK_GRPC")
+    if heartbeat:
+        healthy = check_heartbeat(Path(heartbeat))
+    elif grpc_target:
+        healthy = check_grpc(grpc_target)
+    else:
+        healthy = check_url(os.environ.get("XAALIS_HEALTHCHECK_URL", DEFAULT_URL))
     return 0 if healthy else 1
 
 

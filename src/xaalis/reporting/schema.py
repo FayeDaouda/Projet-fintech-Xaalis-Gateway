@@ -156,6 +156,8 @@ class PaymentIntentType:
     created_at: dt.datetime
     expires_at: dt.datetime
     succeeded_at: dt.datetime | None
+    risk_score: int | None = strawberry.field(description="Score anti-fraude, 0 à 1000 ‰.")
+    risk_decision: str | None = strawberry.field(description="approve, review ou decline.")
 
     @strawberry.field(description="Remboursements (chargés par DataLoader).")
     async def refunds(self, info: ReportingInfo) -> list[RefundType]:
@@ -181,6 +183,8 @@ class PaymentIntentType:
             created_at=intent.created_at,
             expires_at=intent.expires_at,
             succeeded_at=intent.succeeded_at,
+            risk_score=intent.risk_score,
+            risk_decision=intent.risk_decision,
         )
 
 

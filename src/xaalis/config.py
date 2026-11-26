@@ -74,6 +74,12 @@ class Settings(BaseSettings):
     breaker_failure_threshold: int = Field(default=5, ge=1)  # lot 3 : 5 échecs consécutifs
     breaker_cooldown_seconds: int = Field(default=30, ge=1)  # lot 3 : semi-ouvert après 30 s
 
+    # Bonus lot 7 : scoring de risque gRPC (ADR 0013). Deadline de l'énoncé : 150 ms.
+    risk_service_target: str = "localhost:50051"
+    risk_deadline_ms: int = Field(default=150, ge=10, le=5_000)
+    # Repli si le service ne répond pas : jusqu'à ce montant on laisse passer, au-delà on attend.
+    risk_fail_open_max_amount: int = Field(default=100_000, ge=0, le=2_000_000)
+
     # Lot 5 : webhooks marchands.
     webhook_encryption_key: SecretStr = SecretStr(f"{DEV_SECRET_PREFIX}webhook-encryption-key-01")
     # 7 délais entre 8 tentatives ≈ 23,6 h (1 min, 5 min, 30 min, 2 h, 4 h, 7 h, 10 h).

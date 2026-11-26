@@ -31,6 +31,8 @@ jobs:
       - run: uv run mypy
       - name: openapi.json à jour (contrôle de dérive du contrat)
         run: uv run python scripts/export_openapi.py --check
+      - name: Code gRPC généré à jour (proto/)
+        run: uv run python scripts/generate_grpc.py --check
 
   test:
     name: Tests (PostgreSQL 16, Redis) + couverture ≥ 85 %

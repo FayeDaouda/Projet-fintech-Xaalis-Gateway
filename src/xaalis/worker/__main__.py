@@ -18,6 +18,7 @@ from xaalis.infra.db import create_engine, create_sessionmaker
 from xaalis.observability.logging import configure_logging, get_logger
 from xaalis.operators.client import OperatorClient, build_http_client
 from xaalis.operators.dispatcher import Dispatcher
+from xaalis.risk.gate import RiskGate, open_channel
 from xaalis.routing.health import OperatorHealth
 from xaalis.webhooks.delivery import WebhookDeliverer
 from xaalis.worker.jobs import (
@@ -58,8 +59,17 @@ async def main() -> None:
         failure_threshold=settings.breaker_failure_threshold,
         cooldown_seconds=settings.breaker_cooldown_seconds,
     )
+    risk_channel = open_channel(settings.risk_service_target)
+    risk = RiskGate(
+        risk_channel,
+        deadline_ms=settings.risk_deadline_ms,
+        fail_open_max_amount=settings.risk_fail_open_max_amount,
+    )
     dispatcher = Dispatcher(
-        sessionmaker, OperatorClient(http, callback_base_url=settings.public_base_url), health
+        sessionmaker,
+        OperatorClient(http, callback_base_url=settings.public_base_url),
+        health,
+        risk=risk,
     )
     webhook_http = httpx.AsyncClient(timeout=httpx.Timeout(settings.webhook_timeout_ms / 1000))
     deliverer = WebhookDeliverer(
@@ -89,6 +99,7 @@ async def main() -> None:
         await run_jobs(jobs, stop)
     finally:
         await http.aclose()
+        await risk_channel.close()
         await webhook_http.aclose()
         await redis.aclose()
         await engine.dispose()

@@ -953,6 +953,16 @@
             "title": "Payer Phone",
             "type": "string"
           },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskAssessmentView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/IntentStatus"
           },
@@ -1409,6 +1419,51 @@
           "deliveries_rescheduled"
         ],
         "title": "ReplayAccepted",
+        "type": "object"
+      },
+      "RiskAssessmentView": {
+        "additionalProperties": false,
+        "description": "Évaluation anti-fraude (ADR 0013), présente dès que le worker a évalué le paiement.",
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "review",
+              "decline"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "score_permille": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Score de 0 à 1000 ; absent si le service était indisponible (repli).",
+            "examples": [
+              80
+            ],
+            "title": "Score Permille"
+          },
+          "source": {
+            "enum": [
+              "service",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "score_permille",
+          "source"
+        ],
+        "title": "RiskAssessmentView",
         "type": "object"
       },
       "RotatedKeyOut": {

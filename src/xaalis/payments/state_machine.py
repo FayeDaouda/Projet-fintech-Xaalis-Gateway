@@ -43,6 +43,9 @@ class IntentEvent(StrEnum):
     EXPIRE = "expire"
     OPERATOR_SUCCEEDED = "operator_succeeded"
     OPERATOR_FAILED = "operator_failed"
+    # Refus anti-fraude (ADR 0013) : même arête processing → failed qu'un refus opérateur,
+    # avant tout débit. Aucun état ni aucune arête n'est ajouté à la machine de l'énoncé.
+    RISK_DECLINED = "risk_declined"
     REFUND_PARTIAL = "refund_partial"
     REFUND_FULL = "refund_full"
 
@@ -56,6 +59,7 @@ TRANSITIONS: Final = MappingProxyType(
         (S.CREATED, E.EXPIRE): S.EXPIRED,
         (S.PROCESSING, E.OPERATOR_SUCCEEDED): S.SUCCEEDED,
         (S.PROCESSING, E.OPERATOR_FAILED): S.FAILED,
+        (S.PROCESSING, E.RISK_DECLINED): S.FAILED,
         (S.PROCESSING, E.EXPIRE): S.EXPIRED,
         (S.SUCCEEDED, E.REFUND_PARTIAL): S.PARTIALLY_REFUNDED,
         (S.SUCCEEDED, E.REFUND_FULL): S.REFUNDED,

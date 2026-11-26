@@ -17,6 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Identity,
+    SmallInteger,
     String,
     func,
     text,
@@ -58,6 +59,10 @@ class PaymentIntent(Base):
         DateTime(timezone=True), server_default=text("now() + interval '15 minutes'")
     )
     succeeded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Évaluation anti-fraude (ADR 0013) : renseignée une fois par le worker, avant tout débit.
+    risk_score: Mapped[int | None] = mapped_column(SmallInteger)
+    risk_decision: Mapped[str | None] = mapped_column(String(16))
+    risk_source: Mapped[str | None] = mapped_column(String(16))
 
     @property
     def net(self) -> int:

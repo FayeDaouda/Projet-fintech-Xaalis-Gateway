@@ -21,6 +21,7 @@ x-app: &app
     XAALIS_OPERATORS_BASE_URL: http://operators:8100
     XAALIS_PUBLIC_BASE_URL: http://api:8000
     XAALIS_MERCHANT_DEMO_URL: http://merchant-demo:8200/webhooks
+    XAALIS_RISK_SERVICE_TARGET: risk:50051
     XAALIS_WEBHOOK_ENCRYPTION_KEY: ${XAALIS_WEBHOOK_ENCRYPTION_KEY:-dev-only-webhook-encryption-key-01}
     XAALIS_DEMO_WEBHOOK_SECRET: ${XAALIS_DEMO_WEBHOOK_SECRET:-dev-only-demo-webhook-secret-00001}
     # Relances webhooks : 7 délais (s) entre 8 tentatives. Pour la démo : '[2,2,2,2,2,2,2]'.
@@ -102,6 +103,19 @@ services:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
       operators: { condition: service_healthy }
+
+  # Scoring de risque en gRPC (bonus, ADR 0013). Interne : aucun port publié, seul le
+  # worker l'appelle. Le worker n'en dépend pas au démarrage : panne = politique de repli.
+  risk:
+    <<: *app
+    command: ["python", "-m", "xaalis_risk"]
+    environment:
+      <<: *app-env
+      XAALIS_HEALTHCHECK_GRPC: 127.0.0.1:50051
+      # Numéros signalés pour fraude ; « 77 000 00 00 » sert la démonstration.
+      XAALIS_RISK_BLOCKLIST: ${XAALIS_RISK_BLOCKLIST:-["+221770000000"]}
+      # Latence injectée (ms) pour montrer la deadline de 150 ms et le repli.
+      XAALIS_RISK_LATENCY_MS: ${XAALIS_RISK_LATENCY_MS:-0}
 
   operators:
     <<: *app

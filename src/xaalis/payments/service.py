@@ -284,6 +284,52 @@ async def select_operator(
     return intent
 
 
+async def apply_risk_verdict(
+    session: AsyncSession,
+    intent_id: str,
+    *,
+    decision: str,
+    source: str,
+    score_permille: int | None,
+    reasons: Sequence[str],
+    actor: str,
+) -> PaymentIntent:
+    """Enregistre l'évaluation anti-fraude, **une seule fois**, avant le premier débit.
+
+    ``decline`` fait échouer l'intent (``processing → failed``, cause ``risk_declined``) :
+    webhook ``payment.failed``, aucun débit demandé, rien au grand livre. Sinon, le fait est
+    historisé sans changement d'état. Un intent qui n'est plus ``processing`` ou déjà évalué
+    est renvoyé tel quel : l'appelant décide de la suite d'après son statut.
+    """
+    intent = await lock_intent(session, intent_id)
+    if intent.status != IntentStatus.PROCESSING.value or intent.risk_decision is not None:
+        return intent
+    details = {
+        "score_permille": score_permille,
+        "decision": decision,
+        "source": source,
+        "reasons": list(reasons),
+    }
+    changes = {"risk_score": score_permille, "risk_decision": decision, "risk_source": source}
+    if decision == "decline":
+        return await _transition(
+            session, intent, IntentEvent.RISK_DECLINED, actor=actor, details=details, **changes
+        )
+    for name, value in changes.items():
+        setattr(intent, name, value)
+    intent.updated_at = await db_now(session)
+    await session.flush()
+    await _history(
+        session,
+        intent,
+        from_status=IntentStatus.PROCESSING,
+        cause="risk_assessed",
+        actor=actor,
+        details=details,
+    )
+    return intent
+
+
 async def record_operator_acceptance(
     session: AsyncSession, intent_id: str, operator: Operator, operator_reference: str
 ) -> None:

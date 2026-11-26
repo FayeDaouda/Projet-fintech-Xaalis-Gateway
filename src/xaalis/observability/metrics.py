@@ -60,3 +60,13 @@ RECONCILIATION_DISCREPANCIES = Gauge(
     labelnames=("operator", "type"),
     multiprocess_mode="mostrecent",
 )
+RISK_ASSESSMENTS = Counter(
+    "xaalis_risk_assessments_total",
+    "Évaluations anti-fraude, par décision (approve, review, decline, hold) et par source.",
+    labelnames=("decision", "source"),
+)
+RISK_LATENCY = Histogram(
+    "xaalis_risk_call_duration_seconds",
+    "Durée des appels gRPC au service de scoring (deadline 150 ms).",
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5),
+)
