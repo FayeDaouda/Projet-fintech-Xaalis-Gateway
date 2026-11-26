@@ -1,21 +1,104 @@
-"""Marchand de démonstration : reçoit les webhooks Xaalis et vérifie leur signature.
+"""Marchand de démonstration : reçoit les webhooks Xaalis et les vérifie comme un vrai client.
 
-Squelette : la vérification HMAC et le journal des événements reçus arrivent au lot 5.
+- vérifie ``X-Xaalis-Signature: t=…,v1=…`` (HMAC-SHA-256, tolérance 300 s, temps constant) ;
+- déduplique par ``event_id`` : un événement relivré n'est traité qu'une fois ;
+- l'ordre n'étant pas garanti, il ne fait jamais régresser un statut (``created_at`` fait foi) ;
+- ``POST /_fail`` le rend volontairement indisponible (démo : relances puis dead letter).
 """
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+import hashlib
+import hmac
+import json
+import time
+from typing import Any
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from xaalis.api.middleware import RequestContextMiddleware
-from xaalis.observability.logging import configure_logging
+from xaalis.observability.logging import configure_logging, get_logger
+
+TOLERANCE_SECONDS = 300
+_log = get_logger("xaalis_sim.merchant_demo")
+
+
+class DemoSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="XAALIS_", extra="ignore")
+
+    demo_webhook_secret: SecretStr = SecretStr("dev-only-demo-webhook-secret-00001")
+
+
+class FailToggle(BaseModel):
+    enabled: bool
+
+
+def verify_signature(secret: str, header: str, body: bytes, now: int) -> bool:
+    parts = dict(item.split("=", 1) for item in header.split(",") if "=" in item)
+    timestamp, received = parts.get("t", ""), parts.get("v1", "")
+    if not timestamp.isdigit() or abs(now - int(timestamp)) > TOLERANCE_SECONDS:
+        return False
+    expected = hmac.new(secret.encode(), f"{timestamp}.".encode() + body, hashlib.sha256)
+    return hmac.compare_digest(expected.hexdigest().encode(), received.encode())
+
+
+def create_app(settings: DemoSettings | None = None) -> FastAPI:
+    config = settings or DemoSettings()
+    app = FastAPI(title="Xaalis — marchand de démonstration", version="1.0.0")
+    app.add_middleware(RequestContextMiddleware)
+    state: dict[str, Any] = {"failing": False, "events": {}, "orders": {}}
+
+    @app.get("/healthz")
+    async def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.post("/webhooks")
+    async def receive(request: Request) -> JSONResponse:
+        if state["failing"]:
+            return JSONResponse({"error": "maintenance"}, status_code=503)
+        body = await request.body()
+        signature = request.headers.get("X-Xaalis-Signature", "")
+        if not verify_signature(
+            config.demo_webhook_secret.get_secret_value(), signature, body, int(time.time())
+        ):
+            _log.warning("webhook_rejected_bad_signature")
+            return JSONResponse({"error": "invalid signature"}, status_code=400)
+
+        event = json.loads(body)
+        if event["id"] in state["events"]:
+            return JSONResponse({"received": True, "duplicate": True})
+        state["events"][event["id"]] = event
+        obj = event["data"]["object"]
+        # L'ordre n'est pas garanti : on ne garde que l'état le plus récent de chaque objet.
+        current = state["orders"].get(obj["id"])
+        if current is None or event["created_at"] >= current["event_created_at"]:
+            state["orders"][obj["id"]] = {
+                "status": obj.get("status"),
+                "event_created_at": event["created_at"],
+            }
+        _log.info("webhook_received", event_id=event["id"], type=event["type"])
+        return JSONResponse({"received": True, "duplicate": False})
+
+    @app.get("/events")
+    async def events() -> dict[str, Any]:
+        received = list(state["events"].values())
+        return {
+            "count": len(received),
+            "events": [{"id": e["id"], "type": e["type"]} for e in received[-50:]],
+            "objects": state["orders"],
+        }
+
+    @app.post("/_fail")
+    async def toggle_failure(body: FailToggle) -> dict[str, bool]:
+        state["failing"] = body.enabled
+        _log.warning("merchant_demo_failure_mode", enabled=body.enabled)
+        return {"failing": body.enabled}
+
+    return app
+
 
 configure_logging(service="xaalis-merchant-demo")
-
-app = FastAPI(title="Xaalis — marchand de démonstration", version="0.1.0")
-app.add_middleware(RequestContextMiddleware)
-
-
-@app.get("/healthz")
-async def healthz() -> dict[str, str]:
-    return {"status": "ok"}
+app = create_app()

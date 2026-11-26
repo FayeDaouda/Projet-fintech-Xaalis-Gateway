@@ -21,6 +21,8 @@ from xaalis.merchants.keys import KeyKind
 from xaalis.merchants.models import Merchant
 from xaalis.merchants.service import create_merchant, issue_key
 from xaalis.observability.logging import configure_logging, get_logger
+from xaalis.payments.service import Scope
+from xaalis.webhooks.service import EventType, create_endpoint
 
 DEMO_MERCHANT_NAME: Final = "Boutique Démo Dakar"
 _log = get_logger("xaalis.seed")
@@ -65,6 +67,15 @@ async def _seed_demo_merchant(session: AsyncSession, settings: Settings) -> None
             raw_key=provided.get_secret_value() if provided else None,
         )
         issued[kind.value] = raw
+    # Webhooks de démo vers le service merchant-demo (réseau Docker, mode test).
+    await create_endpoint(
+        session,
+        Scope(merchant.id, False),
+        url=settings.merchant_demo_url,
+        events=list(EventType),
+        encryption_key=settings.webhook_encryption_key.get_secret_value(),
+        secret=settings.demo_webhook_secret.get_secret_value(),
+    )
     # Affichage unique, en environnement de développement seulement.
     _log.warning(
         "seed_demo_merchant_created",

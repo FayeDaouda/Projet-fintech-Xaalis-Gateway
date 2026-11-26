@@ -19,6 +19,11 @@ x-app: &app
     XAALIS_LOG_LEVEL: ${XAALIS_LOG_LEVEL:-INFO}
     XAALIS_OPERATORS_BASE_URL: http://operators:8100
     XAALIS_PUBLIC_BASE_URL: http://api:8000
+    XAALIS_MERCHANT_DEMO_URL: http://merchant-demo:8200/webhooks
+    XAALIS_WEBHOOK_ENCRYPTION_KEY: ${XAALIS_WEBHOOK_ENCRYPTION_KEY:-dev-only-webhook-encryption-key-01}
+    XAALIS_DEMO_WEBHOOK_SECRET: ${XAALIS_DEMO_WEBHOOK_SECRET:-dev-only-demo-webhook-secret-00001}
+    # Relances webhooks : 7 délais (s) entre 8 tentatives. Pour la démo : '[2,2,2,2,2,2,2]'.
+    XAALIS_WEBHOOK_RETRY_SCHEDULE_SECONDS: ${XAALIS_WEBHOOK_RETRY_SCHEDULE_SECONDS:-[60,300,1800,7200,14400,25200,36000]}
     XAALIS_OPERATOR_SECRET_GOPAY: ${XAALIS_OPERATOR_SECRET_GOPAY:-dev-only-gopay-callback-secret-0001}
     XAALIS_OPERATOR_SECRET_TERANGA: ${XAALIS_OPERATOR_SECRET_TERANGA:-dev-only-teranga-callback-secret-0001}
     XAALIS_OPERATOR_SECRET_NDIAGA: ${XAALIS_OPERATOR_SECRET_NDIAGA:-dev-only-ndiaga-callback-secret-0001}
@@ -103,6 +108,7 @@ services:
     <<: *app
     command: ["uvicorn", "xaalis_sim.merchant_demo.app:app", "--host", "0.0.0.0", "--port", "8200", "--no-access-log"]
     environment:
+      <<: *app-env
       XAALIS_HEALTHCHECK_URL: http://127.0.0.1:8200/healthz
     ports: ["8200:8200"]
 
