@@ -18,12 +18,12 @@ import re
 import secrets
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Any, Literal
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,6 +31,7 @@ from xaalis.api.middleware import RequestContextMiddleware
 from xaalis.observability.logging import configure_logging, get_logger
 from xaalis_sim.operators.formats import BUILDERS
 from xaalis_sim.operators.profiles import PROFILES, Profile
+from xaalis_sim.operators.statements import build_statement
 
 OperatorName = Literal["gopay", "teranga", "ndiaga"]
 _PHONE = re.compile(r"^\+2217(\d)\d{7}$")
@@ -49,6 +50,8 @@ class SimulatorSettings(BaseSettings):
     sim_ndiaga_outage_every_seconds: int = Field(default=0, ge=0)
     sim_ndiaga_outage_duration_seconds: int = Field(default=0, ge=0)
     sim_callback_attempts: int = Field(default=3, ge=1)
+    # Relevés : injection volontaire d'anomalies (ligne manquante, en trop, montant, doublon).
+    sim_statement_anomalies: bool = True
 
 
 @dataclass
@@ -246,6 +249,30 @@ def create_app(
                 "response_delay_ms": state.response_delay_ms,
             }
             for name, state in sim.chaos.items()
+        }
+
+    def _statement(operators: list[str], day: date, anomalies: bool | None) -> Any:
+        inject = sim.settings.sim_statement_anomalies if anomalies is None else anomalies
+        return build_statement(list(sim.charges.values()), operators, day, inject=inject)
+
+    @app.get("/statements/{day}.csv", response_class=PlainTextResponse)
+    async def consolidated_statement(day: date, anomalies: bool | None = None) -> PlainTextResponse:
+        statement = _statement(list(PROFILES), day, anomalies)
+        return PlainTextResponse(statement.csv, media_type="text/csv")
+
+    @app.get("/{operator}/statements/{day}.csv", response_class=PlainTextResponse)
+    async def operator_statement(
+        operator: OperatorName, day: date, anomalies: bool | None = None
+    ) -> PlainTextResponse:
+        statement = _statement([operator], day, anomalies)
+        return PlainTextResponse(statement.csv, media_type="text/csv")
+
+    @app.get("/statements/{day}/anomalies.json")
+    async def injected_anomalies(day: date) -> dict[str, Any]:
+        """Transparence pour la démo et les tests : ce qui a été injecté volontairement."""
+        return {
+            "date": day.isoformat(),
+            "anomalies": _statement(list(PROFILES), day, True).anomalies,
         }
 
     @app.post("/_chaos")
