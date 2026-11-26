@@ -66,3 +66,12 @@ async def test_failure_mode_returns_503() -> None:
         assert (
             await _post(http, _event("evt_3", "failed", "2026-11-26T10:00:00Z"))
         ).status_code == 503
+
+
+async def test_secret_of_an_endpoint_created_later_can_be_registered() -> None:
+    other = "whsec_endpoint_" + "e" * 30
+    async with _client() as http:
+        body = _event("evt_4", "succeeded", "2026-11-26T10:00:00Z")
+        assert (await _post(http, body, secret=other)).status_code == 400
+        assert (await http.post("/_secrets", json={"secret": other})).status_code == 204
+        assert (await _post(http, body, secret=other)).status_code == 200

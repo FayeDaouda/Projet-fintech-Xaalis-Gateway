@@ -3,7 +3,9 @@
 - vérifie ``X-Xaalis-Signature: t=…,v1=…`` (HMAC-SHA-256, tolérance 300 s, temps constant) ;
 - déduplique par ``event_id`` : un événement relivré n'est traité qu'une fois ;
 - l'ordre n'étant pas garanti, il ne fait jamais régresser un statut (``created_at`` fait foi) ;
-- ``POST /_fail`` le rend volontairement indisponible (démo : relances puis dead letter).
+- ``POST /_fail`` le rend volontairement indisponible (démo : relances puis dead letter) ;
+- ``POST /_secrets`` ajoute le secret d'un endpoint créé à la volée (``scripts/demo.sh``),
+  comme un marchand recopierait le secret affiché à la création de son endpoint.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from xaalis.api.middleware import RequestContextMiddleware
@@ -36,6 +38,10 @@ class FailToggle(BaseModel):
     enabled: bool
 
 
+class SecretIn(BaseModel):
+    secret: str = Field(min_length=16, max_length=200)
+
+
 def verify_signature(secret: str, header: str, body: bytes, now: int) -> bool:
     parts = dict(item.split("=", 1) for item in header.split(",") if "=" in item)
     timestamp, received = parts.get("t", ""), parts.get("v1", "")
@@ -50,6 +56,7 @@ def create_app(settings: DemoSettings | None = None) -> FastAPI:
     app = FastAPI(title="Xaalis — marchand de démonstration", version="1.0.0")
     app.add_middleware(RequestContextMiddleware)
     state: dict[str, Any] = {"failing": False, "events": {}, "orders": {}}
+    secrets: list[str] = [config.demo_webhook_secret.get_secret_value()]
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -61,9 +68,8 @@ def create_app(settings: DemoSettings | None = None) -> FastAPI:
             return JSONResponse({"error": "maintenance"}, status_code=503)
         body = await request.body()
         signature = request.headers.get("X-Xaalis-Signature", "")
-        if not verify_signature(
-            config.demo_webhook_secret.get_secret_value(), signature, body, int(time.time())
-        ):
+        now = int(time.time())
+        if not any(verify_signature(secret, signature, body, now) for secret in secrets):
             _log.warning("webhook_rejected_bad_signature")
             return JSONResponse({"error": "invalid signature"}, status_code=400)
 
@@ -90,6 +96,11 @@ def create_app(settings: DemoSettings | None = None) -> FastAPI:
             "events": [{"id": e["id"], "type": e["type"]} for e in received[-50:]],
             "objects": state["orders"],
         }
+
+    @app.post("/_secrets", status_code=204)
+    async def add_secret(body: SecretIn) -> None:
+        if body.secret not in secrets:
+            secrets.append(body.secret)
 
     @app.post("/_fail")
     async def toggle_failure(body: FailToggle) -> dict[str, bool]:
