@@ -77,3 +77,63 @@ def idem(key: str | None = None) -> dict[str, str]:
     import uuid
 
     return {"Idempotency-Key": key or f"test-{uuid.uuid4()}"}
+
+
+async def succeeded_intent(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    merchant_id: str,
+    amount: int,
+    *,
+    livemode: bool = False,
+) -> str:
+    """Crée un intent réussi par le vrai chemin : création, confirmation, callback opérateur."""
+    import uuid as _uuid
+
+    from xaalis.core.operators import Operator
+    from xaalis.operators.callbacks import CallbackOutcome, NormalizedCallback
+    from xaalis.operators.service import handle_callback
+    from xaalis.payments.service import Scope, confirm_intent, create_intent
+
+    scope = Scope(merchant_id, livemode)
+    async with sessionmaker.begin() as session:
+        intent = await create_intent(
+            session,
+            scope,
+            amount=amount,
+            currency="XOF",
+            payer_phone=random_phone("78"),
+            actor="test",
+        )
+    async with sessionmaker.begin() as session:
+        await confirm_intent(session, scope, intent.id, actor="test")
+    async with sessionmaker.begin() as session:
+        await handle_callback(
+            session,
+            NormalizedCallback(
+                Operator.GOPAY,
+                f"GP-{_uuid.uuid4().hex}",
+                intent.id,
+                CallbackOutcome.SUCCEEDED,
+                amount,
+                {},
+            ),
+        )
+    return intent.id
+
+
+def signed_headers(
+    secret_key: str, body: bytes, *, idempotency_key: str | None = None
+) -> dict[str, str]:
+    """En-têtes d'une requête sensible : clé secrète, signature HMAC horodatée, idempotence."""
+    import time as _time
+
+    from xaalis.core.signatures import sign
+
+    ts = int(_time.time())
+    return {
+        **bearer(secret_key),
+        **idem(idempotency_key),
+        "Content-Type": "application/json",
+        "X-Xaalis-Timestamp": str(ts),
+        "X-Xaalis-Signature": sign(secret_key, ts, body),
+    }
