@@ -37,8 +37,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         op.f("ck_payment_intents_risk_source"),
         "payment_intents",
-        "(risk_decision IS NULL AND risk_source IS NULL) "
-        "OR risk_source IN ('service', 'fallback')",
+        "(risk_decision IS NULL AND risk_source IS NULL) OR risk_source IN ('service', 'fallback')",
     )
 
 
