@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Console marchand de démonstration de la passerelle Xaalis Gateway.">
+  <title>Xaalis — Console marchand</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f6b52'/%3E%3Cpath d='M10 9l12 14M22 9L10 23' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script>
+    // Thème appliqué avant le premier rendu (pas de flash) ; le choix est mémorisé localement.
+    try { const t = localStorage.getItem("xaalis-theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+  </script>
+  <script type="module" src="/static/js/main.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Navigation principale">
+      <a class="brand" href="#/boutique" aria-label="Xaalis — accueil">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M6 5l12 14M18 5L6 19"/></svg>
+        </span>
+        <span>
+          <span class="brand-name">Xaalis</span><br>
+          <span class="brand-sub">Console marchand</span>
+        </span>
+      </a>
+
+      <div class="merchant-card" id="merchant-card" aria-live="polite">
+        <span class="avatar" aria-hidden="true">M</span>
+        <span class="grow">
+          <span class="name ellipsis skeleton" id="merchant-name">Maison Sandaga</span>
+          <span class="meta ellipsis" id="merchant-id">connexion…</span>
+        </span>
+      </div>
+
+      <nav class="nav" id="nav"></nav>
+
+      <div class="sidebar-foot">
+        <a href="http://localhost:8000/docs" target="_blank" rel="noopener" id="docs-link"></a>
+        <button type="button" id="reset-merchant"></button>
+        <button type="button" id="theme-toggle"></button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <button type="button" class="btn icon ghost menu-btn" id="menu-btn" aria-label="Ouvrir le menu" aria-controls="sidebar" aria-expanded="false"></button>
+        <div class="crumbs" id="crumbs"></div>
+        <div class="spacer"></div>
+        <span class="pill test" title="Clés pk_test_ / sk_test_ : aucun argent réel ne circule">Mode test</span>
+        <span class="pill" id="health-pill"><span class="dot"></span>Passerelle…</span>
+      </header>
+      <main class="content" id="view" tabindex="-1"></main>
+    </div>
+  </div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <noscript><p style="padding:24px">La console nécessite JavaScript.</p></noscript>
+</body>
+</html>
