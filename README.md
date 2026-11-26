@@ -266,6 +266,19 @@ Résultat sur la machine de développement : **200 créations/s soutenues, 0 err
 670 ms (objectif 150 ms non atteint sur cette machine). Analyse complète du goulot,
 hypothèses testées et pistes : [docs/load-test.md](docs/load-test.md).
 
+## Vidéo de démonstration
+
+Lien : **_à renseigner après le tournage_**.
+
+Le scénario imposé (SSE, panne et bascule, remboursement partiel, dead letter et rejeu,
+rapprochement avec écarts, règlement T+1) est déroulé par un script, rejouable à volonté :
+
+```bash
+docker compose down -v
+XAALIS_WEBHOOK_RETRY_SCHEDULE_SECONDS='[2,2,2,2,2,2,2]' docker compose up -d --build
+scripts/demo.sh        # pause avant chaque étape ; guide de tournage : docs/demo.md
+```
+
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — modules et dépendances
