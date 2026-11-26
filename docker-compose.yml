@@ -22,6 +22,10 @@ x-app: &app
     XAALIS_PUBLIC_BASE_URL: http://api:8000
     XAALIS_MERCHANT_DEMO_URL: http://merchant-demo:8200/webhooks
     XAALIS_RISK_SERVICE_TARGET: risk:50051
+    # Traces OpenTelemetry → Jaeger (bonus, ADR 0014). Mettre à false pour les désactiver.
+    XAALIS_OTEL_ENABLED: ${XAALIS_OTEL_ENABLED:-true}
+    XAALIS_OTEL_EXPORTER_ENDPOINT: http://jaeger:4317
+    XAALIS_OTEL_SAMPLE_PERMILLE: ${XAALIS_OTEL_SAMPLE_PERMILLE:-1000}
     XAALIS_WEBHOOK_ENCRYPTION_KEY: ${XAALIS_WEBHOOK_ENCRYPTION_KEY:-dev-only-webhook-encryption-key-01}
     XAALIS_DEMO_WEBHOOK_SECRET: ${XAALIS_DEMO_WEBHOOK_SECRET:-dev-only-demo-webhook-secret-00001}
     # Relances webhooks : 7 délais (s) entre 8 tentatives. Pour la démo : '[2,2,2,2,2,2,2]'.
@@ -91,6 +95,7 @@ services:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
       operators: { condition: service_healthy }
+      jaeger: { condition: service_started }  # destination des traces
 
   worker:
     <<: *app
@@ -99,10 +104,12 @@ services:
       <<: *app-env
       XAALIS_SERVICE_NAME: xaalis-worker
       XAALIS_HEALTHCHECK_FILE: /tmp/xaalis-worker.heartbeat
+      XAALIS_WORKER_METRICS_PORT: 9100  # lu par Prometheus (réseau interne uniquement)
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
       operators: { condition: service_healthy }
+      jaeger: { condition: service_started }  # destination des traces
 
   # Scoring de risque en gRPC (bonus, ADR 0013). Interne : aucun port publié, seul le
   # worker l'appelle. Le worker n'en dépend pas au démarrage : panne = politique de repli.
@@ -135,6 +142,52 @@ services:
       <<: *app-env
       XAALIS_HEALTHCHECK_URL: http://127.0.0.1:8200/healthz
     ports: ["8200:8200"]
+
+  # ------------------------------------------------------------------ observabilité (bonus)
+  # Traces OTLP (gRPC 4317, interne) ; interface : http://localhost:16686
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports: ["16686:16686"]
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=2d"]
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Tableau de bord provisionné : http://localhost:3000 (lecture anonyme)
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-dev-only-grafana-admin-password}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/xaalis.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on:
+      prometheus: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
 volumes:
   db-data:

@@ -1,0 +1,13 @@
+# Collecte des métriques Xaalis (bonus OpenTelemetry + Grafana, ADR 0014).
+global:
+  scrape_interval: 5s      # démonstration : courbes réactives ; 15 à 30 s en production
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: xaalis-api   # tous les processus uvicorn (mode multiprocessus de prometheus_client)
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+  - job_name: xaalis-worker  # scoring gRPC, appels opérateurs
+    static_configs:
+      - targets: ["worker:9100"]
