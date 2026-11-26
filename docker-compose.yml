@@ -37,6 +37,7 @@ services:
       POSTGRES_DB: xaalis
       POSTGRES_USER: xaalis
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xaalis}
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=256MB"]
     ports: ["5432:5432"]
     volumes: [db-data:/var/lib/postgresql/data]
     healthcheck:
@@ -76,6 +77,14 @@ services:
     environment:
       <<: *app-env
       XAALIS_SERVICE_NAME: xaalis-api
+      # Un processus Python n'utilise qu'un cœur (GIL) : plusieurs processus uvicorn.
+      # Voir docs/load-test.md. Budget de connexions : 4 × (10 + 10) + écoute SSE ≤ 100.
+      WEB_CONCURRENCY: ${XAALIS_API_WORKERS:-4}
+      XAALIS_DB_POOL_SIZE: ${XAALIS_API_DB_POOL_SIZE:-10}
+      XAALIS_DB_MAX_OVERFLOW: ${XAALIS_API_DB_MAX_OVERFLOW:-10}
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
+    tmpfs:
+      - /tmp/prometheus:uid=10001,gid=10001
     ports: ["8000:8000"]
     depends_on:
       migrate: { condition: service_completed_successfully }

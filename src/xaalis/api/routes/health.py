@@ -8,11 +8,18 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Literal
 
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
-from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, generate_latest
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    REGISTRY,
+    CollectorRegistry,
+    generate_latest,
+    multiprocess,
+)
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 
@@ -66,7 +73,17 @@ async def readyz(resources: ResourcesDep) -> Response:
 )
 async def metrics(resources: ResourcesDep) -> Response:
     await refresh_business_metrics(resources.sessionmaker, resources.operator_health)
-    return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
+    return Response(generate_latest(_registry()), media_type=CONTENT_TYPE_LATEST)
+
+
+def _registry() -> CollectorRegistry:
+    """Plusieurs processus uvicorn : on agrège les métriques de tous (mode multiprocessus),
+    sinon /metrics ne montrerait que celles du processus qui a reçu la requête."""
+    if not os.environ.get("PROMETHEUS_MULTIPROC_DIR"):
+        return REGISTRY
+    registry = CollectorRegistry()
+    multiprocess.MultiProcessCollector(registry)  # type: ignore[no-untyped-call]  # non annoté en amont
+    return registry
 
 
 async def _check_database(resources: Resources) -> CheckStatus:
