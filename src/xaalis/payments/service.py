@@ -8,6 +8,7 @@ transaction.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -36,6 +37,7 @@ from xaalis.routing.catalog import RoutingSnapshot, plan_route
 INTENT_TTL: Final = timedelta(minutes=15)  # XG-07
 MAX_PROCESSING_PER_PAYER: Final = 3  # XG-14
 OPERATOR_CHARGE_TOPIC: Final = f"{INTERNAL_PREFIX}operator.charge"
+PAYMENT_EVENTS_CHANNEL: Final = "xaalis_payment_events"
 
 
 class UnsupportedCurrencyError(DomainError):
@@ -73,19 +75,19 @@ async def _history(
     cause: str,
     actor: str,
     details: Mapping[str, Any] | None = None,
-) -> None:
+) -> PaymentEvent:
     """Historise un fait sur l'intent (transition ou non), sans le publier."""
-    session.add(
-        PaymentEvent(
-            intent_id=intent.id,
-            from_status=from_status.value if from_status else None,
-            to_status=intent.status,
-            cause=cause,
-            actor=actor,
-            details=dict(details or {}),
-        )
+    event = PaymentEvent(
+        intent_id=intent.id,
+        from_status=from_status.value if from_status else None,
+        to_status=intent.status,
+        cause=cause,
+        actor=actor,
+        details=dict(details or {}),
     )
+    session.add(event)
     await session.flush()
+    return event
 
 
 async def _record(
@@ -97,9 +99,18 @@ async def _record(
     actor: str,
     details: Mapping[str, Any] | None = None,
 ) -> None:
-    """Historise un changement d'état ET le publie dans l'outbox (même transaction)."""
-    await _history(
+    """Historise un changement d'état ET le publie (outbox + NOTIFY), même transaction."""
+    event = await _history(
         session, intent, from_status=from_status, cause=cause, actor=actor, details=details
+    )
+    # Flux SSE (lot 7) : NOTIFY est transactionnel, il n'est délivré qu'au COMMIT.
+    await session.execute(
+        select(
+            func.pg_notify(
+                PAYMENT_EVENTS_CHANNEL,
+                json.dumps({"intent_id": intent.id, "event_id": event.id, "status": intent.status}),
+            )
+        )
     )
     await enqueue(
         session,

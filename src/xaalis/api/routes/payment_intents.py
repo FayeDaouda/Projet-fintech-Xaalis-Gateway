@@ -5,7 +5,8 @@ from __future__ import annotations
 import hashlib
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Path, Query, Request, Response
+from fastapi import APIRouter, Header, Path, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, StrictInt, field_validator
 
 from xaalis.api.auth import AnyKeyDep, SecretKeyDep, enforce_rate_limit
@@ -20,6 +21,7 @@ from xaalis.merchants.service import MerchantPrincipal
 from xaalis.payments import service as payments
 from xaalis.payments.state_machine import IntentStatus
 from xaalis.payments.views import PaymentIntentView
+from xaalis.realtime.stream import parse_last_event_id, stream_intent
 
 INTENT_ID_PATTERN = r"^pi_[0-9A-HJKMNP-TV-Z]{26}$"
 IntentId = Annotated[
@@ -192,4 +194,35 @@ async def list_payment_intents(
     data = [PaymentIntentView.of(row) for row in rows]
     return Page[PaymentIntentView](
         data=data, has_more=has_more, next_cursor=data[-1].id if has_more else None
+    )
+
+
+@router.get(
+    "/{intent_id}/stream",
+    response_class=StreamingResponse,
+    summary="Flux SSE des changements d'état (clé publique pk_)",
+    responses={
+        200: {"description": "Flux text/event-stream.", "content": {"text/event-stream": {}}},
+        404: {"model": Problem, "description": "Intent introuvable."},
+    },
+)
+async def stream_payment_intent(
+    intent_id: IntentId,
+    request: Request,
+    principal: AnyKeyDep,
+    resources: ResourcesDep,
+    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID", max_length=32)] = None,
+) -> StreamingResponse:
+    async with resources.sessionmaker() as session:  # 404 AVANT d'ouvrir le flux (XG-12)
+        await payments.get_intent(session, _scope(principal), intent_id)
+    return StreamingResponse(
+        stream_intent(
+            intent_id=intent_id,
+            sessionmaker=resources.sessionmaker,
+            broker=request.app.state.broker,
+            last_event_id=parse_last_event_id(last_event_id),
+            is_disconnected=request.is_disconnected,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
