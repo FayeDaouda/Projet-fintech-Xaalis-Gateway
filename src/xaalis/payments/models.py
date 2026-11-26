@@ -19,6 +19,7 @@ from sqlalchemy import (
     Identity,
     String,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -28,6 +29,8 @@ from xaalis.infra.db import Base
 
 class PaymentIntent(Base):
     __tablename__ = "payment_intents"
+    # Valeurs par défaut calculées en base (now(), now() + 15 min), relues par RETURNING.
+    __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012 — convention SQLAlchemy
     __table_args__ = (
         ForeignKeyConstraint(
             ["merchant_id", "livemode"],
@@ -51,7 +54,9 @@ class PaymentIntent(Base):
     metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now() + interval '15 minutes'")
+    )
     succeeded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @property

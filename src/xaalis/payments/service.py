@@ -182,7 +182,8 @@ async def create_intent(
         msg = f"devise non prise en charge : {currency} (seul {CURRENCY} est accepté)"
         raise UnsupportedCurrencyError(msg)
     breakdown = fee_breakdown(ensure_intent_amount(amount))
-    now = await db_now(session)
+    # Horodatages calculés par PostgreSQL dans l'INSERT et relus par RETURNING : pas
+    # d'aller-retour « SELECT now() » de plus (cf. docs/load-test.md).
     intent = PaymentIntent(
         id=new_id("pi"),
         merchant_id=scope.merchant_id,
@@ -195,9 +196,6 @@ async def create_intent(
         amount_refunded=0,
         description=description,
         metadata_=dict(metadata or {}),
-        created_at=now,
-        updated_at=now,
-        expires_at=now + INTENT_TTL,
     )
     session.add(intent)
     await session.flush()
