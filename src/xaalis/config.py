@@ -68,6 +68,16 @@ class Settings(BaseSettings):
     breaker_failure_threshold: int = Field(default=5, ge=1)  # lot 3 : 5 échecs consécutifs
     breaker_cooldown_seconds: int = Field(default=30, ge=1)  # lot 3 : semi-ouvert après 30 s
 
+    # Lot 5 : webhooks marchands.
+    webhook_encryption_key: SecretStr = SecretStr(f"{DEV_SECRET_PREFIX}webhook-encryption-key-01")
+    # 7 délais entre 8 tentatives ≈ 23,6 h (1 min, 5 min, 30 min, 2 h, 4 h, 7 h, 10 h).
+    webhook_retry_schedule_seconds: list[int] = Field(
+        default=[60, 300, 1_800, 7_200, 14_400, 25_200, 36_000], min_length=1
+    )
+    webhook_timeout_ms: int = Field(default=5_000, ge=100)
+    merchant_demo_url: str = "http://localhost:8200/webhooks"
+    demo_webhook_secret: SecretStr = SecretStr(f"{DEV_SECRET_PREFIX}demo-webhook-secret-00001")
+
     log_level: LogLevel = "INFO"
     log_json: bool = True
 
@@ -77,6 +87,7 @@ class Settings(BaseSettings):
         "operator_secret_gopay",
         "operator_secret_teranga",
         "operator_secret_ndiaga",
+        "webhook_encryption_key",
     )
     @classmethod
     def _secret_is_long_enough(cls, value: SecretStr) -> SecretStr:
@@ -96,6 +107,7 @@ class Settings(BaseSettings):
             "operator_secret_gopay",
             "operator_secret_teranga",
             "operator_secret_ndiaga",
+            "webhook_encryption_key",
         ):
             secret: SecretStr = getattr(self, name)
             if secret.get_secret_value().startswith(DEV_SECRET_PREFIX):

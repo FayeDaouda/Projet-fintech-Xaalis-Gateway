@@ -8,6 +8,8 @@ from xaalis.merchants import models as merchant_models
 from xaalis.operators import models as operator_models
 from xaalis.outbox import models as outbox_models
 from xaalis.payments import models as payment_models
+from xaalis.refunds import models as refund_models
+from xaalis.webhooks import models as webhook_models
 
 __all__ = [
     "Base",
@@ -18,4 +20,6 @@ __all__ = [
     "operator_models",
     "outbox_models",
     "payment_models",
+    "refund_models",
+    "webhook_models",
 ]

@@ -15,7 +15,15 @@ from xaalis import __version__
 from xaalis.api.middleware import RequestContextMiddleware
 from xaalis.api.problems import install_problem_handlers
 from xaalis.api.resources import Resources
-from xaalis.api.routes import admin, api_keys, health, operators, payment_intents
+from xaalis.api.routes import (
+    admin,
+    api_keys,
+    health,
+    operators,
+    payment_intents,
+    refunds,
+    webhooks,
+)
 from xaalis.config import Settings, get_settings
 from xaalis.observability.logging import configure_logging, get_logger
 
@@ -60,4 +68,6 @@ def create_app(settings: Settings | None = None, resources: Resources | None = N
     app.include_router(api_keys.router)
     app.include_router(payment_intents.router)
     app.include_router(operators.router)
+    app.include_router(refunds.router)
+    app.include_router(webhooks.router)
     return app

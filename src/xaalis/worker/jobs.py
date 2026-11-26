@@ -16,6 +16,8 @@ from xaalis.idempotency.service import purge_expired
 from xaalis.observability.logging import get_logger
 from xaalis.operators.dispatcher import Dispatcher
 from xaalis.payments.service import expire_due_intents
+from xaalis.webhooks.delivery import WebhookDeliverer
+from xaalis.webhooks.service import fan_out
 from xaalis.worker.runner import Job
 
 _log = get_logger(__name__)
@@ -68,3 +70,24 @@ def dispatch_job(dispatcher: Dispatcher, interval_seconds: int = 1) -> Job:
         return await dispatcher.run_batch()
 
     return periodic("dispatch_operator_charges", interval_seconds, step)
+
+
+def webhook_fanout_job(
+    sessionmaker: async_sessionmaker[AsyncSession], interval_seconds: int = 1
+) -> Job:
+    """Lot 5 : outbox → événements et livraisons par endpoint abonné."""
+
+    async def step() -> int:
+        async with sessionmaker.begin() as session:
+            return await fan_out(session)
+
+    return periodic("webhook_fanout", interval_seconds, step)
+
+
+def webhook_delivery_job(deliverer: WebhookDeliverer, interval_seconds: int = 1) -> Job:
+    """Lot 5 : envoie les webhooks dus, planifie les relances, bascule en dead letter."""
+
+    async def step() -> int:
+        return await deliverer.run_batch()
+
+    return periodic("webhook_delivery", interval_seconds, step)

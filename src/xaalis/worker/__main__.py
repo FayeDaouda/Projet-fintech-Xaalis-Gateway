@@ -7,6 +7,7 @@ import functools
 import os
 from pathlib import Path
 
+import httpx
 from redis.asyncio import Redis
 
 import xaalis.models  # noqa: F401 — enregistre TOUS les modèles ORM (clés étrangères)
@@ -16,7 +17,14 @@ from xaalis.observability.logging import configure_logging, get_logger
 from xaalis.operators.client import OperatorClient, build_http_client
 from xaalis.operators.dispatcher import Dispatcher
 from xaalis.routing.health import OperatorHealth
-from xaalis.worker.jobs import dispatch_job, expiry_job, idempotency_purge_job
+from xaalis.webhooks.delivery import WebhookDeliverer
+from xaalis.worker.jobs import (
+    dispatch_job,
+    expiry_job,
+    idempotency_purge_job,
+    webhook_delivery_job,
+    webhook_fanout_job,
+)
 from xaalis.worker.runner import Job, heartbeat, install_signal_handlers, run_jobs
 
 _DEFAULT_HEARTBEAT = "/tmp/xaalis-worker.heartbeat"  # noqa: S108 — fichier sans contenu sensible
@@ -49,17 +57,27 @@ async def main() -> None:
     dispatcher = Dispatcher(
         sessionmaker, OperatorClient(http, callback_base_url=settings.public_base_url), health
     )
+    webhook_http = httpx.AsyncClient(timeout=httpx.Timeout(settings.webhook_timeout_ms / 1000))
+    deliverer = WebhookDeliverer(
+        sessionmaker,
+        webhook_http,
+        encryption_key=settings.webhook_encryption_key.get_secret_value(),
+        schedule=settings.webhook_retry_schedule_seconds,
+    )
     jobs: list[Job] = [
         functools.partial(heartbeat, path=heartbeat_path),
         dispatch_job(dispatcher),
         expiry_job(sessionmaker),
         idempotency_purge_job(sessionmaker),
+        webhook_fanout_job(sessionmaker),
+        webhook_delivery_job(deliverer),
     ]
     log.info("worker_started", environment=settings.environment, jobs=len(jobs))
     try:
         await run_jobs(jobs, stop)
     finally:
         await http.aclose()
+        await webhook_http.aclose()
         await redis.aclose()
         await engine.dispose()
         log.info("worker_stopped")

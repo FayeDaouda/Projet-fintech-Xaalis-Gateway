@@ -17,12 +17,14 @@ from xaalis.observability.metrics import (
     OUTBOX_PENDING,
     PAYMENT_INTENTS,
     RECONCILIATION_ALERTS,
+    WEBHOOK_DELIVERIES,
 )
 from xaalis.operators.models import ReconciliationAlert
 from xaalis.outbox.models import OutboxMessage
 from xaalis.outbox.service import INTERNAL_PREFIX
 from xaalis.payments.models import PaymentIntent
 from xaalis.routing.health import BreakerState, OperatorHealth
+from xaalis.webhooks.models import WebhookDelivery
 
 _log = get_logger(__name__)
 _BREAKER_VALUE = {BreakerState.CLOSED: 0, BreakerState.HALF_OPEN: 1, BreakerState.OPEN: 2}
@@ -66,6 +68,13 @@ async def refresh_business_metrics(
                 OUTBOX_PENDING.labels(family=name).set(0)
             for name, count in pending:
                 OUTBOX_PENDING.labels(family=name).set(count)
+            deliveries = await session.execute(
+                select(WebhookDelivery.status, func.count()).group_by(WebhookDelivery.status)
+            )
+            for name in ("pending", "delivered", "dead_letter"):
+                WEBHOOK_DELIVERIES.labels(status=name).set(0)
+            for name, count in deliveries:
+                WEBHOOK_DELIVERIES.labels(status=name).set(count)
             RECONCILIATION_ALERTS.clear()
             for kind, count in alerts:
                 RECONCILIATION_ALERTS.labels(kind=kind).set(count)

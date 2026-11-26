@@ -43,3 +43,8 @@ OPERATOR_CALLBACKS = Counter(
     "Callbacks opérateurs reçus, par opérateur et par issue de traitement.",
     labelnames=("operator", "disposition"),
 )
+WEBHOOK_DELIVERIES = Gauge(
+    "xaalis_webhook_deliveries",
+    "Livraisons de webhooks par statut (pending = profondeur de la file, dead_letter).",
+    labelnames=("status",),
+)

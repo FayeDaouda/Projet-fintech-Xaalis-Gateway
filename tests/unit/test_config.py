@@ -23,6 +23,7 @@ def test_production_accepts_explicit_secrets() -> None:
         operator_secret_gopay=SecretStr("g" * 40),
         operator_secret_teranga=SecretStr("t" * 40),
         operator_secret_ndiaga=SecretStr("n" * 40),
+        webhook_encryption_key=SecretStr("w" * 40),
     )
     assert settings.environment == "production"
     assert settings.operator_secret("gopay") == "g" * 40
