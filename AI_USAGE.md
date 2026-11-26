@@ -20,6 +20,7 @@ Conformément à la section 10 de l'énoncé.
 | Lot 3 : simulateur, disjoncteur, dispatcher et bascule, callbacks, ADR 0007 | Génération assistée | ☐ |
 | Lot 5 et remboursements : webhooks, SSRF, dead letter, XG-08 à XG-11, ADR 0008/0009 | Génération assistée | ☐ |
 | Lot 6 : relevés piégés, rapprochement Polars, T+1, virements, ADR 0010 | Génération assistée | ☐ |
+| Lot 7 : SSE (LISTEN/NOTIFY), GraphQL Strawberry + DataLoader, ADR 0011 | Génération assistée | ☐ |
 
 ## Propositions corrigées ou rejetées
 

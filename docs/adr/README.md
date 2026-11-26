@@ -16,3 +16,4 @@ nouvel ADR qui le déclare « remplacé ».
 | [0008](0008-remboursements-et-solde-marchand.md) | Remboursements : comptes débités, verrous, ordre des contrôles | accepté |
 | [0009](0009-relances-des-webhooks.md) | Webhooks : signature, relances sur 24 h, dead letter, rejeu | accepté |
 | [0010](0010-traitement-des-releves-polars.md) | Traitement des relevés avec Polars (types stricts, XG-01) | accepté |
+| [0011](0011-temps-reel-et-reporting.md) | Temps réel par LISTEN/NOTIFY, GraphQL avec DataLoader | accepté |

@@ -167,6 +167,34 @@ Chaque nuit, le worker rapproche la veille (heure de Dakar) puis règle ce qui e
 rapproché. `POST /v1/payouts` (signé HMAC, `Idempotency-Key`) vire tout le solde
 `available`. Exemple complet : [docs/reconciliation-sample/](docs/reconciliation-sample/).
 
+## Temps réel et tableau de bord
+
+**SSE** (page de paiement, clé publique) — un événement `status_changed` par changement
+d'état ; reprise automatique après coupure grâce à `Last-Event-ID` :
+
+```bash
+curl -N localhost:8000/v1/payment-intents/pi_…/stream -H "Authorization: Bearer pk_test_…"
+```
+
+```js
+// côté navigateur, avec une bibliothèque SSE autorisant l'en-tête Authorization
+source.addEventListener("status_changed", (e) => afficher(JSON.parse(e.data).status));
+```
+
+**GraphQL** (`POST /graphql`, clé secrète, lecture seule ; GraphiQL hors production) :
+
+```graphql
+{
+  paymentIntents(status: SUCCEEDED, operator: GOPAY, first: 20) {
+    nodes { id amount payerPhone refunds { amount } history { toStatus } }
+    hasNextPage endCursor
+  }
+  dailyVolumes(dateFrom: "2026-11-01", dateTo: "2026-11-30") { date operator succeeded volume }
+  successRates(dateFrom: "2026-11-01", dateTo: "2026-11-30") { operator successRatePermille }
+  revenue(dateFrom: "2026-11-01", dateTo: "2026-11-30") { gross fees refunded net }
+}
+```
+
 ## Variables d'environnement
 
 Voir [`.env.example`](.env.example). Toutes sont préfixées par `XAALIS_`.

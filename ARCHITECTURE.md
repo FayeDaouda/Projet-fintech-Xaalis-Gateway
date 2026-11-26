@@ -1,6 +1,6 @@
 # Architecture
 
-> Document vivant : complété à chaque lot. Version actuelle : lots 1 à 6.
+> Document vivant : complété à chaque lot. Version actuelle : lots 1 à 7.
 
 ## Processus
 
@@ -41,6 +41,8 @@
 | `xaalis.webhooks` | Endpoints (secrets chiffrés), SSRF, diffusion, livraison signée, relances, rejeu | `outbox`, `core` |
 | `xaalis.reconciliation` | Relevés (Polars), moteur de rapprochement pur, exécutions et rapports | `core`, `ledger` |
 | `xaalis.settlement` | Règlement T+1 (jour de Dakar, rapproché sans écart) et virements | `reconciliation`, `ledger` |
+| `xaalis.realtime` | Diffuseur LISTEN/NOTIFY et flux SSE avec rattrapage | `payments` |
+| `xaalis.reporting` | Schéma GraphQL lecture seule, DataLoaders, agrégats | `payments`, `refunds` |
 | `xaalis.outbox` | Outbox transactionnel (événements et commandes internes) | `infra` |
 | `xaalis.idempotency` | Clés d'idempotence en base (ADR 0005) | `infra` |
 | `xaalis.seed` | Jeu de démonstration idempotent | `admin`, `merchants` |
