@@ -13,7 +13,7 @@ from xaalis.core.phone import (
     national_prefix,
     normalize_phone,
 )
-from xaalis.observability.logging import configure_logging
+from xaalis.observability.logging import configure_logging, flush_logs
 
 
 @pytest.mark.parametrize("phone", ["+221771234512", "+221701234567", "+221789999999"])
@@ -58,6 +58,7 @@ def test_xg03_numbers_never_reach_the_logs(capsys: pytest.CaptureFixture[str]) -
         "callback +221771234512", payer="+221781112233", nested={"phones": ["+221751112244"]}
     )
     logging.getLogger("stdlib").warning("raw +221761112255")
+    flush_logs()  # écriture asynchrone : on attend que la file soit vidée
     output = capsys.readouterr().out
     for raw in ("+221771234512", "+221781112233", "+221751112244", "+221761112255"):
         assert raw not in output
