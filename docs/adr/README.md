@@ -15,4 +15,4 @@ nouvel ADR qui le déclare « remplacé ».
 | [0007](0007-routage-disjoncteur-et-bascule.md) | Routage, disjoncteur et bascule sans double débit | accepté |
 | [0008](0008-remboursements-et-solde-marchand.md) | Remboursements : comptes débités, verrous, ordre des contrôles | accepté |
 | [0009](0009-relances-des-webhooks.md) | Webhooks : signature, relances sur 24 h, dead letter, rejeu | accepté |
-| 0010 | Traitement des relevés : Polars ou pandas | à rédiger |
+| [0010](0010-traitement-des-releves-polars.md) | Traitement des relevés avec Polars (types stricts, XG-01) | accepté |

@@ -1,0 +1,5 @@
+type,operator,operator_reference,intent_id,livemode,statement_amount,ledger_amount,occurrences
+amount_mismatch,gopay,GP-E6964FA690A6123A,pi_01M8AKGMQQ5BXEY2S09K1AXCCP,false,15500,15000,1
+duplicate,gopay,GP-8F93D27E79645204,pi_01M8AKGM0EVZF41MVB9DEVP7W4,false,12500,12500,2
+missing_in_ledger,gopay,GO-FAKE01F7DA46,,,12816,,1
+missing_in_statement,gopay,GP-EB3A2A9D540D6D6B,pi_01M8AKGKSBPFA2T39XTYFR7QGJ,false,,10000,0

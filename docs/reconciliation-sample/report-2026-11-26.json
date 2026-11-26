@@ -1,0 +1,66 @@
+{
+    "object": "reconciliation_report",
+    "date": "2026-11-26",
+    "runs": [
+        {
+            "id": "rec_01M8AKGTWC7WGTXAGBKZHQJTKZ",
+            "operator": "gopay",
+            "source": "simulator",
+            "status": "completed",
+            "statement_lines": 7,
+            "matched": 3,
+            "error": null,
+            "created_at": "2026-11-26T00:19:08.814921Z",
+            "completed_at": "2026-11-26T00:19:09.887921Z"
+        }
+    ],
+    "matched": 3,
+    "summary": {
+        "amount_mismatch": 1,
+        "duplicate": 1,
+        "missing_in_ledger": 1,
+        "missing_in_statement": 1
+    },
+    "discrepancies": [
+        {
+            "type": "amount_mismatch",
+            "operator": "gopay",
+            "operator_reference": "GP-E6964FA690A6123A",
+            "intent_id": "pi_01M8AKGMQQ5BXEY2S09K1AXCCP",
+            "livemode": false,
+            "statement_amount": 15500,
+            "ledger_amount": 15000,
+            "occurrences": 1
+        },
+        {
+            "type": "duplicate",
+            "operator": "gopay",
+            "operator_reference": "GP-8F93D27E79645204",
+            "intent_id": "pi_01M8AKGM0EVZF41MVB9DEVP7W4",
+            "livemode": false,
+            "statement_amount": 12500,
+            "ledger_amount": 12500,
+            "occurrences": 2
+        },
+        {
+            "type": "missing_in_ledger",
+            "operator": "gopay",
+            "operator_reference": "GO-FAKE01F7DA46",
+            "intent_id": null,
+            "livemode": null,
+            "statement_amount": 12816,
+            "ledger_amount": null,
+            "occurrences": 1
+        },
+        {
+            "type": "missing_in_statement",
+            "operator": "gopay",
+            "operator_reference": "GP-EB3A2A9D540D6D6B",
+            "intent_id": "pi_01M8AKGKSBPFA2T39XTYFR7QGJ",
+            "livemode": false,
+            "statement_amount": null,
+            "ledger_amount": 10000,
+            "occurrences": 0
+        }
+    ]
+}

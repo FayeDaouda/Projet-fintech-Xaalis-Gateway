@@ -19,6 +19,7 @@ Conformément à la section 10 de l'énoncé.
 | Lot 2 : intents, machine à états, idempotence, limites XG-13/14, outbox, ADR 0003/0005/0006 | Génération assistée | ☐ |
 | Lot 3 : simulateur, disjoncteur, dispatcher et bascule, callbacks, ADR 0007 | Génération assistée | ☐ |
 | Lot 5 et remboursements : webhooks, SSRF, dead letter, XG-08 à XG-11, ADR 0008/0009 | Génération assistée | ☐ |
+| Lot 6 : relevés piégés, rapprochement Polars, T+1, virements, ADR 0010 | Génération assistée | ☐ |
 
 ## Propositions corrigées ou rejetées
 

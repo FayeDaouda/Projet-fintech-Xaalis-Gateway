@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-26",
+  "anomalies": [
+    {
+      "operator": "gopay",
+      "type": "missing",
+      "operator_reference": "GP-EB3A2A9D540D6D6B"
+    },
+    {
+      "operator": "gopay",
+      "type": "amount",
+      "operator_reference": "GP-E6964FA690A6123A"
+    },
+    {
+      "operator": "gopay",
+      "type": "duplicate",
+      "operator_reference": "GP-8F93D27E79645204"
+    },
+    {
+      "operator": "gopay",
+      "type": "extra",
+      "operator_reference": "GO-FAKE01F7DA46"
+    }
+  ]
+}

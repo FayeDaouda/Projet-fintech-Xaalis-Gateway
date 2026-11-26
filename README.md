@@ -142,6 +142,31 @@ curl -X DELETE localhost:8100/_chaos   # retour au comportement nominal
 Fenêtres de panne périodiques de Ndiaga Cash : `XAALIS_SIM_NDIAGA_OUTAGE_EVERY_SECONDS` et
 `XAALIS_SIM_NDIAGA_OUTAGE_DURATION_SECONDS` (désactivées par défaut).
 
+## Rapprochement, règlement T+1 et virements
+
+```bash
+# 1. Rapprocher une date (relevés récupérés auprès du simulateur), traité par le worker
+curl -X POST localhost:8000/v1/admin/reconciliations -H "Authorization: Bearer $ADMIN_JWT" \
+     -H 'Content-Type: application/json' -d '{"date": "2026-11-27"}'
+# … ou rapprocher un relevé fourni (CSV brut)
+curl -X POST "localhost:8000/v1/admin/reconciliations?date=2026-11-27&operator=gopay" \
+     -H "Authorization: Bearer $ADMIN_JWT" -H 'Content-Type: text/csv' --data-binary @releve.csv
+
+# 2. Rapport d'écarts, en JSON ou en CSV
+curl "localhost:8000/v1/admin/reconciliations/2026-11-27" -H "Authorization: Bearer $ADMIN_JWT"
+curl "localhost:8000/v1/admin/reconciliations/2026-11-27?format=csv" -H "Authorization: Bearer $ADMIN_JWT"
+
+# 3. Règlement T+1 : seuls les paiements rapprochés sans écart passent en « available ».
+#    Refusé le jour même (409 settlement_too_early). « as_of » simule la date courante
+#    pour la démo, interdit en production.
+curl -X POST localhost:8000/v1/admin/settlements -H "Authorization: Bearer $ADMIN_JWT" \
+     -H 'Content-Type: application/json' -d '{"date": "2026-11-27", "as_of": "2026-11-28"}'
+```
+
+Chaque nuit, le worker rapproche la veille (heure de Dakar) puis règle ce qui est
+rapproché. `POST /v1/payouts` (signé HMAC, `Idempotency-Key`) vire tout le solde
+`available`. Exemple complet : [docs/reconciliation-sample/](docs/reconciliation-sample/).
+
 ## Variables d'environnement
 
 Voir [`.env.example`](.env.example). Toutes sont préfixées par `XAALIS_`.
