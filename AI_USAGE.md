@@ -29,5 +29,29 @@ Conformément à la section 10 de l'énoncé.
 
 > Au moins deux exemples exigés. À noter **au moment où cela arrive**, avec la raison.
 
-1. _À compléter._
-2. _À compléter._
+> **Brouillon factuel à relire et à reformuler avec mes mots avant le rendu.**
+
+1. **Limitation de débit (XG-13) : algorithme GCRA rejeté.**
+   - *Proposition* : un limiteur GCRA (variante du seau à jetons) dans Redis.
+   - *Problème constaté* : le test de la limite de 100 requêtes par minute a échoué :
+     101 requêtes envoyées en 0,6 s passaient toutes. GCRA recharge en continu, donc sur
+     60 s glissantes il laisse passer jusqu'à ≈ 2 × la limite.
+   - *Correction* : fenêtre glissante exacte (sorted set Redis + script Lua atomique).
+     Voir [ADR 0006](docs/adr/0006-limitation-de-debit.md).
+
+2. **Verrouillage : `FOR UPDATE` remplacé par `FOR NO KEY UPDATE`.**
+   - *Proposition* : verrouiller la ligne du marchand en `SELECT … FOR UPDATE` avant un
+     remboursement.
+   - *Problème constaté* : le test des 50 remboursements concurrents a donné 49 réponses
+     503. L'insertion de la clé d'idempotence (clé étrangère) pose un verrou `KEY SHARE` sur
+     la même ligne, incompatible avec `FOR UPDATE` : interblocage jusqu'au `lock_timeout`.
+   - *Correction* : `FOR NO KEY UPDATE`, exclusif entre écrivains mais compatible avec les
+     clés étrangères. Voir l'addendum de l'[ADR 0002](docs/adr/0002-concurrence-et-verrouillage.md).
+
+3. **Bascule d'opérateur : « interroger puis basculer » rejeté.**
+   - *Proposition* : après un timeout chez l'opérateur A, interroger le statut de la charge
+     et basculer vers B s'il répondait « inconnue ».
+   - *Problème* : un opérateur lent peut répondre « inconnue » pendant que la demande est
+     encore en cours, puis débiter : risque de **double débit**.
+   - *Correction* : une réponse ambiguë fige l'opérateur ; la bascule n'a lieu que sur un
+     refus certain. Voir [ADR 0007](docs/adr/0007-routage-disjoncteur-et-bascule.md).
