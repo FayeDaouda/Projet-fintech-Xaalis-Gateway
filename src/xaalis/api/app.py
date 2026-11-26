@@ -31,6 +31,7 @@ from xaalis.api.routes import (
 )
 from xaalis.config import Settings, get_settings
 from xaalis.observability.logging import configure_logging, get_logger
+from xaalis.observability.tracing import configure_tracing, instrument_fastapi
 from xaalis.realtime.broker import EventBroker
 from xaalis.reconciliation.engine import MAX_STATEMENT_BYTES
 
@@ -47,6 +48,7 @@ def create_app(settings: Settings | None = None, resources: Resources | None = N
     configure_logging(
         service=settings.service_name, level=settings.log_level, json_output=settings.log_json
     )
+    configure_tracing(settings.service_name)  # no-op sauf XAALIS_OTEL_ENABLED=true
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -93,4 +95,5 @@ def create_app(settings: Settings | None = None, resources: Resources | None = N
     app.include_router(
         graphql.build_router(enable_ide=settings.environment != "production"), prefix="/graphql"
     )
+    instrument_fastapi(app)
     return app

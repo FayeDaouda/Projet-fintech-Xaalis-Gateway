@@ -9,6 +9,7 @@ from datetime import date
 from pathlib import Path
 
 import httpx
+from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
 import xaalis.models  # noqa: F401 — enregistre TOUS les modèles ORM (clés étrangères)
@@ -16,6 +17,7 @@ from xaalis.config import get_settings
 from xaalis.core.operators import Operator
 from xaalis.infra.db import create_engine, create_sessionmaker
 from xaalis.observability.logging import configure_logging, get_logger
+from xaalis.observability.tracing import configure_tracing
 from xaalis.operators.client import OperatorClient, build_http_client
 from xaalis.operators.dispatcher import Dispatcher
 from xaalis.risk.gate import RiskGate, open_channel
@@ -41,6 +43,10 @@ async def main() -> None:
         service="xaalis-worker", level=settings.log_level, json_output=settings.log_json
     )
     log = get_logger("xaalis.worker")
+    configure_tracing("xaalis-worker")  # avant les clients httpx/gRPC : ils sont instrumentés
+    metrics_port = int(os.environ.get("XAALIS_WORKER_METRICS_PORT", "0"))
+    if metrics_port:  # métriques du worker (scoring, opérateurs) pour Prometheus
+        start_http_server(metrics_port)
 
     stop = asyncio.Event()
     install_signal_handlers(stop)

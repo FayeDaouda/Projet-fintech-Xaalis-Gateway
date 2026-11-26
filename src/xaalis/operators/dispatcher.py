@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from xaalis.core.operators import Operator
 from xaalis.observability.logging import get_logger
+from xaalis.observability.tracing import continue_trace
 from xaalis.operators.client import ChargeResult, ChargeStatus, OperatorClient
 from xaalis.outbox import service as outbox
 from xaalis.outbox.models import OutboxMessage
@@ -72,6 +73,14 @@ class Dispatcher:
             await self._retry(message, f"crash: {type(exc).__name__}")
 
     async def dispatch(self, message: OutboxMessage) -> None:
+        with continue_trace(
+            "operator charge",
+            message.traceparent,
+            {"xaalis.intent_id": message.aggregate_id, "xaalis.attempt": message.attempts},
+        ):
+            await self._dispatch(message)
+
+    async def _dispatch(self, message: OutboxMessage) -> None:
         structlog.contextvars.bind_contextvars(
             request_id=message.request_id, intent_id=message.aggregate_id
         )

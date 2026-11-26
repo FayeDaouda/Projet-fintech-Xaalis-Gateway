@@ -53,6 +53,7 @@ class WebhookEvent(Base):
     type: Mapped[str] = mapped_column(String(64))
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
     request_id: Mapped[str | None] = mapped_column(String(128))
+    traceparent: Mapped[str | None] = mapped_column(String(64))  # W3C, ADR 0014
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

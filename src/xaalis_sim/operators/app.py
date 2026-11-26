@@ -29,6 +29,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from xaalis.api.middleware import RequestContextMiddleware
 from xaalis.observability.logging import configure_logging, get_logger
+from xaalis.observability.tracing import configure_tracing, instrument_fastapi
 from xaalis_sim.operators.formats import BUILDERS
 from xaalis_sim.operators.profiles import PROFILES, Profile
 from xaalis_sim.operators.statements import build_statement
@@ -304,4 +305,6 @@ def create_app(
 
 
 configure_logging(service="xaalis-operators")
+configure_tracing("xaalis-operators")
 app = create_app()
+instrument_fastapi(app)

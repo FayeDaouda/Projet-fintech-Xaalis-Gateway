@@ -30,6 +30,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from xaalis.api.middleware import RequestContextMiddleware
 from xaalis.observability.logging import configure_logging, get_logger
+from xaalis.observability.tracing import configure_tracing, instrument_fastapi
 from xaalis_sim.merchant_demo.console import build_router, install_error_handlers
 from xaalis_sim.merchant_demo.gateway import Gateway
 from xaalis_sim.merchant_demo.inbox import WebhookInbox
@@ -162,4 +163,6 @@ def create_app(
 
 
 configure_logging(service="xaalis-merchant-demo")
+configure_tracing("xaalis-merchant-demo")
 app = create_app()
+instrument_fastapi(app)

@@ -85,6 +85,7 @@ async def fan_out(session: AsyncSession, *, limit: int = 100) -> int:
                 type=message.topic,
                 payload=message.payload,
                 request_id=message.request_id,
+                traceparent=message.traceparent,
                 created_at=message.created_at,
             )
             .on_conflict_do_nothing(index_elements=["id"])

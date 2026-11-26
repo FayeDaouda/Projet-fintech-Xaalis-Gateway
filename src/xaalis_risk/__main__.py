@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 
 from xaalis.observability.logging import configure_logging
+from xaalis.observability.tracing import configure_tracing
 from xaalis_risk.server import RiskSettings, serve
 
 
 def main() -> None:
     configure_logging(service="xaalis-risk")
+    configure_tracing("xaalis-risk")
     asyncio.run(serve(RiskSettings()))
 
 

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from xaalis.config import Settings
+from xaalis.observability.tracing import instrument_engine
 
 # Noms de contraintes déterministes : les migrations Alembic restent lisibles et stables.
 NAMING_CONVENTION = {
@@ -34,7 +35,7 @@ class Base(DeclarativeBase):
 
 
 def create_engine(settings: Settings) -> AsyncEngine:
-    return create_async_engine(
+    engine = create_async_engine(
         settings.database_url,
         pool_size=settings.db_pool_size,
         max_overflow=settings.db_max_overflow,
@@ -48,6 +49,8 @@ def create_engine(settings: Settings) -> AsyncEngine:
             }
         },
     )
+    instrument_engine(engine)  # spans SQL si le traçage est actif (ADR 0014), sinon rien
+    return engine
 
 
 def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

@@ -17,6 +17,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from xaalis.core.ids import new_id
+from xaalis.observability.tracing import current_traceparent
 from xaalis.outbox.models import OutboxMessage
 
 # Préfixe des messages internes (commandes) : jamais livrés aux marchands.
@@ -45,6 +46,8 @@ async def enqueue(
             aggregate_id=aggregate_id,
             payload=payload,
             request_id=request_id if isinstance(request_id, str) else None,
+            # La trace de la requête traverse l'outbox avec l'événement (ADR 0014).
+            traceparent=current_traceparent(),
         )
     )
     await session.flush()

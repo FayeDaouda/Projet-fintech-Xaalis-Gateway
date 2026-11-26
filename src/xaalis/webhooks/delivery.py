@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from xaalis.core.signatures import sign
 from xaalis.observability.logging import get_logger
+from xaalis.observability.tracing import continue_trace
 from xaalis.webhooks import crypto
 from xaalis.webhooks.models import WebhookDelivery, WebhookEndpoint, WebhookEvent
 from xaalis.webhooks.ssrf import (
@@ -135,6 +136,14 @@ class WebhookDeliverer:
             return jobs
 
     async def _deliver(self, job: _Job) -> None:
+        with continue_trace(
+            "webhook delivery",
+            job.event.traceparent,
+            {"xaalis.event_id": job.event.id, "xaalis.event_type": job.event.type},
+        ):
+            await self._deliver_traced(job)
+
+    async def _deliver_traced(self, job: _Job) -> None:
         structlog.contextvars.bind_contextvars(
             request_id=job.event.request_id, event_id=job.event.id, endpoint_id=job.endpoint.id
         )

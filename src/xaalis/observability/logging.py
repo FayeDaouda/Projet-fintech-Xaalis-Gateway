@@ -24,6 +24,7 @@ import structlog
 from structlog.typing import EventDict, Processor, WrappedLogger
 
 from xaalis.core.phone import mask_phones_in_text
+from xaalis.observability.tracing import add_trace_ids
 
 
 def _service_tagger(service: str) -> Processor:
@@ -94,6 +95,7 @@ atexit.register(_stop_listener)
 def configure_logging(*, service: str, level: str = "INFO", json_output: bool = True) -> None:
     shared: list[Processor] = [
         structlog.contextvars.merge_contextvars,
+        add_trace_ids,  # corrélation log ↔ trace (no-op sans traçage)
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
