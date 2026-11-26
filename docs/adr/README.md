@@ -18,3 +18,4 @@ nouvel ADR qui le déclare « remplacé ».
 | [0010](0010-traitement-des-releves-polars.md) | Traitement des relevés avec Polars (types stricts, XG-01) | accepté |
 | [0011](0011-temps-reel-et-reporting.md) | Temps réel par LISTEN/NOTIFY, GraphQL avec DataLoader | accepté |
 | [0012](0012-console-web-du-marchand-de-demonstration.md) | Console web portée par le marchand de démo (clé secrète côté serveur) | accepté |
+| [0013](0013-scoring-de-risque-grpc.md) | Scoring de risque en gRPC : deadline 150 ms, repli borné par un plafond | accepté |

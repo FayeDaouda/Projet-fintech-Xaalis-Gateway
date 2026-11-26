@@ -25,6 +25,7 @@ de l'API et du worker. Aucun fichier `.env` n'est nécessaire en local.
 | `worker` | Outbox, webhooks, expiration, rapprochement, règlement | — |
 | `operators` | Simulateur des trois opérateurs | http://localhost:8100 |
 | `merchant-demo` | Marchand de démonstration : **console web** et réception des webhooks | http://localhost:8200 |
+| `risk` | Scoring de risque **gRPC** (bonus), interne : appelé par le worker, deadline 150 ms | — (aucun port publié) |
 | `db` | PostgreSQL 16 | `localhost:5432` |
 | `redis` | Limitation de débit, état des disjoncteurs | `localhost:6379` |
 
@@ -160,6 +161,25 @@ curl -X DELETE localhost:8100/_chaos   # retour au comportement nominal
 
 Fenêtres de panne périodiques de Ndiaga Cash : `XAALIS_SIM_NDIAGA_OUTAGE_EVERY_SECONDS` et
 `XAALIS_SIM_NDIAGA_OUTAGE_DURATION_SECONDS` (désactivées par défaut).
+
+## Scoring de risque (gRPC, bonus)
+
+Avant le premier débit, le worker fait évaluer chaque paiement par le service interne
+`risk` (contrat [`proto/xaalis/risk/v1/risk.proto`](proto/xaalis/risk/v1/risk.proto)),
+avec une **deadline de 150 ms**. Score entier de 0 à 1000 ‰ et raisons stables, visibles
+dans le champ `risk` de l'intent ; un refus fait échouer le paiement **avant tout débit**.
+
+Si le service est en panne ou trop lent : jusqu'à 100 000 XOF le paiement continue (tracé
+`source: fallback`), au-delà il attend le retour du service, au plus jusqu'à l'expiration
+de 15 min ([ADR 0013](docs/adr/0013-scoring-de-risque-grpc.md)).
+
+```bash
+# Refus : le 77 000 00 00 est sur la liste noire de démonstration
+# Repli : arrêter le service, puis payer
+docker compose stop risk
+# Deadline : service ralenti à 400 ms
+XAALIS_RISK_LATENCY_MS=400 docker compose up -d risk
+```
 
 ## Rapprochement, règlement T+1 et virements
 

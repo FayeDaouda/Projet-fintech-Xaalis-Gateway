@@ -24,6 +24,7 @@ Conformément à la section 10 de l'énoncé.
 | Conformité du contrat : Schemathesis, limite de taille, OpenAPI exact | Génération assistée | ☐ |
 | Test de charge Locust, profilage, optimisations, docs/load-test.md | Génération assistée, mesures réelles | ☐ |
 | Console web du marchand de démo (BFF, interface, tests), ADR 0012 | Génération assistée, vérifiée dans le navigateur | ☐ |
+| Bonus gRPC : contrat proto, microservice de scoring, deadline et repli, ADR 0013 | Génération assistée | ☐ |
 
 ## Propositions corrigées ou rejetées
 

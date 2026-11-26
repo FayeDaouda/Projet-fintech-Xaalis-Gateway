@@ -20,6 +20,7 @@
                  ┌──────┴───────┐                     ┌──────────────┐
                  │     api      │ ◀────────────────── │  operators   │
                  └──────────────┘                     └──────────────┘
+                 worker ──gRPC, deadline 150 ms──▶ risk (scoring, interne, ADR 0013)
                  Redis : limitation de débit, état des disjoncteurs
 ```
 
@@ -48,6 +49,8 @@
 | `xaalis.seed` | Jeu de démonstration idempotent | `admin`, `merchants` |
 | `xaalis.api` | Application FastAPI, middleware, erreurs RFC 9457, authentification, routes | tous |
 | `xaalis.worker` | Boucle des tâches de fond | `infra`, domaines |
+| `xaalis.risk` | Client gRPC du scoring (deadline 150 ms) et politique de repli ; code généré dans `risk/v1` | `observability` |
+| `xaalis_risk` | Microservice gRPC de scoring : règles pures, serveur `grpc.aio`, santé gRPC (ADR 0013) | `xaalis.risk.v1`, `core` |
 | `xaalis_sim` | Simulateurs (opérateurs, marchand de démo et sa console web — ADR 0012), hors périmètre de couverture | `observability` |
 
 Règle de dépendance : les modules de domaine (`core`, `ledger`, `merchants`, puis `payments`…)
