@@ -58,11 +58,11 @@ async def test_xg07_intent_expires_fifteen_minutes_after_creation(
     [
         ({"amount": 99}, "amount"),
         ({"amount": 2_000_001}, "amount"),
-        ({"amount": 1000.0}, "amount"),
+        ({"amount": 1000.5}, "amount"),
         ({"amount": "1000"}, "amount"),
         ({"amount": True}, "amount"),
     ],
-    ids=["below-min", "above-max", "float", "string", "bool"],
+    ids=["below-min", "above-max", "fraction", "string", "bool"],
 )
 async def test_xg01_amount_must_be_an_integer_within_bounds(
     client: httpx.AsyncClient, sk: dict[str, str], override: dict[str, object], field: str
@@ -70,6 +70,20 @@ async def test_xg01_amount_must_be_an_integer_within_bounds(
     response = await client.post(URL, json=intent_payload(**override), headers={**sk, **idem()})
     assert response.status_code == 422
     assert response.json()["errors"][0]["loc"][-1] == field
+
+
+async def test_xg01_integral_json_number_is_an_integer(
+    client: httpx.AsyncClient, sk: dict[str, str]
+) -> None:
+    """En JSON Schema, 12345.0 est un entier : il est accepté et stocké en int exact."""
+    response = await client.post(
+        URL,
+        content=b'{"amount": 12345.0, "currency": "XOF", "payer_phone": "+221771234500"}',
+        headers={**sk, **idem(), "Content-Type": "application/json"},
+    )
+    assert response.status_code == 201
+    assert response.json()["amount"] == 12345
+    assert '"amount":12345,' in response.text
 
 
 @pytest.mark.parametrize("currency", ["EUR", "USD", "xof", "XAF"])

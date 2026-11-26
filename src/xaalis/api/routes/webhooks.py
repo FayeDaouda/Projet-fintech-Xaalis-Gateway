@@ -21,7 +21,12 @@ EventId = Annotated[str, Path(pattern=r"^evt_[0-9A-HJKMNP-TV-Z]{26}$")]
 
 
 class EndpointCreate(ApiModel):
-    url: str = Field(min_length=8, max_length=2048, examples=["https://boutique.sn/webhooks"])
+    url: str = Field(
+        min_length=10,
+        max_length=2048,
+        pattern=r"^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[^ \t\n\r\f\v]*)?$",
+        examples=["https://boutique.sn/webhooks"],
+    )
     events: list[EventType] = Field(min_length=1, max_length=len(EventType))
 
 

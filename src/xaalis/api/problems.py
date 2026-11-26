@@ -8,6 +8,7 @@ passe par ce module : le client n'a qu'un seul format à gérer.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from http import HTTPStatus
 from typing import Any
@@ -161,15 +162,39 @@ async def _on_problem(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
+def _allowed_methods(request: Request) -> str:
+    """Méthodes **documentées** pour ce chemin, d'après le schéma OpenAPI (mis en cache).
+
+    Starlette n'annonce que les méthodes de la première route qui correspond, alors que
+    GET et POST d'un même chemin sont deux routes ; le contrat publié fait foi.
+    """
+    table: list[tuple[re.Pattern[str], str]] | None = getattr(
+        request.app.state, "allowed_methods", None
+    )
+    if table is None:
+        table = []
+        for template, item in request.app.openapi().get("paths", {}).items():
+            pattern = re.compile("^" + re.sub(r"\{[^/}]+\}", "[^/]+", template) + "$")
+            table.append((pattern, ", ".join(sorted(m.upper() for m in item))))
+        request.app.state.allowed_methods = table
+    for pattern, methods in table:
+        if pattern.match(request.url.path):
+            return methods
+    return ""
+
+
 async def _on_http_exception(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, StarletteHTTPException)  # noqa: S101
     detail = exc.detail if isinstance(exc.detail, str) else None
+    headers = dict(exc.headers or {})
+    if exc.status_code == 405:
+        headers["Allow"] = _allowed_methods(request) or headers.get("Allow", "")
     return problem_response(
         request,
         status=exc.status_code,
         code=_STATUS_CODES.get(exc.status_code, "http_error"),
         detail=detail if detail != HTTPStatus(exc.status_code).phrase else None,
-        headers=exc.headers,
+        headers=headers,
     )
 
 

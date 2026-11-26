@@ -9,19 +9,35 @@ from typing import Annotated, Literal
 
 import polars as pl
 from fastapi import APIRouter, Path, Query, Request, Response
-from fastapi.exceptions import RequestValidationError
-from pydantic import Field, ValidationError
+from pydantic import Field
+from starlette.convertors import Convertor, register_url_convertor
 
 from xaalis.api.auth import AdminDep
 from xaalis.api.problems import Problem, ProblemError
 from xaalis.api.resources import ResourcesDep, SessionDep
-from xaalis.api.schemas import ApiModel
+from xaalis.api.schemas import ApiModel, IsoDate
 from xaalis.core.clock import today_in_dakar
 from xaalis.core.operators import Operator
 from xaalis.reconciliation import service as reconciliation
-from xaalis.reconciliation.engine import MAX_STATEMENT_BYTES, Outcome
+from xaalis.reconciliation.engine import Outcome
 from xaalis.reconciliation.models import ReconciliationRun
 from xaalis.settlement.service import settle_day
+
+
+class IsoDateConvertor(Convertor[dt.date]):
+    """Segment de chemin ``AAAA-MM-JJ`` : « /reconciliations/statements » ne peut pas être
+    pris pour un rapport daté (sinon 422 au lieu de 405 sur une méthode non déclarée)."""
+
+    regex = r"[0-9]{4}-[0-9]{2}-[0-9]{2}"
+
+    def convert(self, value: str) -> dt.date:
+        return dt.date.fromisoformat(value)
+
+    def to_string(self, value: dt.date) -> str:
+        return value.isoformat()
+
+
+register_url_convertor("isodate", IsoDateConvertor())
 
 router = APIRouter(
     prefix="/v1/admin",
@@ -34,7 +50,7 @@ router = APIRouter(
 
 
 class ReconciliationRequest(ApiModel):
-    date: dt.date
+    date: IsoDate
     operators: list[Operator] = Field(default_factory=lambda: list(Operator), min_length=1)
 
 
@@ -84,55 +100,53 @@ def _run_out(run: ReconciliationRun) -> RunOut:
     "/reconciliations",
     status_code=202,
     response_model=ReconciliationAccepted,
-    summary="Lancer le rapprochement d'une date (relevé du simulateur ou CSV fourni)",
-    description=(
-        'Corps JSON `{"date": "2026-11-26", "operators": ["gopay"]}` : le relevé est '
-        "récupéré auprès de chaque opérateur. Corps `text/csv` + paramètres `date` et "
-        "`operator` : le relevé fourni est rapproché tel quel."
-    ),
+    summary="Lancer le rapprochement d'une date (relevés récupérés auprès des opérateurs)",
+)
+async def request_reconciliation(
+    body: ReconciliationRequest, admin: AdminDep, session: SessionDep
+) -> ReconciliationAccepted:
+    async with session.begin():
+        runs = await reconciliation.request_runs(
+            session, body.date, operators=body.operators, requested_by=admin.subject
+        )
+    return ReconciliationAccepted(date=body.date, runs=[_run_out(run) for run in runs])
+
+
+@router.post(
+    "/reconciliations/statements",
+    status_code=202,
+    response_model=ReconciliationAccepted,
+    summary="Rapprocher un relevé CSV fourni (relevé piégé, export opérateur…)",
     openapi_extra={
         "requestBody": {
             "required": True,
-            "content": {
-                "application/json": {
-                    "schema": {"$ref": "#/components/schemas/ReconciliationRequest"}
-                },
-                "text/csv": {"schema": {"type": "string"}},
-            },
+            "content": {"text/csv": {"schema": {"type": "string", "minLength": 1}}},
         }
     },
-    responses={422: {"model": Problem, "description": "Requête ou relevé invalide."}},
 )
-async def request_reconciliation(
+async def upload_statement(
     request: Request,
     admin: AdminDep,
     session: SessionDep,
-    statement_date: Annotated[dt.date | None, Query(alias="date")] = None,
-    operator: Annotated[Operator | None, Query()] = None,
+    statement_date: Annotated[dt.date, Query(alias="date")],
+    operator: Annotated[Operator, Query()],
 ) -> ReconciliationAccepted:
-    raw = await request.body()
-    if len(raw) > MAX_STATEMENT_BYTES:
-        raise ProblemError(413, "payload_too_large", "Relevé de 5 Mo au plus.")
-    content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
-    if content_type == "text/csv":
-        if statement_date is None or operator is None:
-            raise ProblemError(422, "validation_error", "Paramètres date et operator requis.")
-        day, operators, csv = statement_date, [operator], raw
-    else:
-        try:
-            payload = ReconciliationRequest.model_validate_json(raw or b"{}")
-        except ValidationError as exc:
-            raise RequestValidationError(exc.errors(include_url=False)) from None
-        day, operators, csv = payload.date, payload.operators, None
+    raw = await request.body()  # taille déjà bornée par le middleware (5 Mio sur ce chemin)
+    if not raw.strip():
+        raise ProblemError(422, "invalid_statement", "Le relevé CSV est vide.")
     async with session.begin():
         runs = await reconciliation.request_runs(
-            session, day, operators=operators, requested_by=admin.subject, statement_csv=csv
+            session,
+            statement_date,
+            operators=[operator],
+            requested_by=admin.subject,
+            statement_csv=raw,
         )
-    return ReconciliationAccepted(date=day, runs=[_run_out(run) for run in runs])
+    return ReconciliationAccepted(date=statement_date, runs=[_run_out(run) for run in runs])
 
 
 @router.get(
-    "/reconciliations/{statement_date}",
+    "/reconciliations/{statement_date:isodate}",
     response_model=ReconciliationReport,
     summary="Rapport d'écarts d'une date (JSON, ou CSV avec ?format=csv)",
     responses={
@@ -194,8 +208,8 @@ async def get_reconciliation(
 
 
 class SettlementRequest(ApiModel):
-    date: dt.date = Field(description="Jour comptable (Dakar) dont on règle les paiements.")
-    as_of: dt.date | None = Field(
+    date: IsoDate = Field(description="Jour comptable (Dakar) dont on règle les paiements.")
+    as_of: IsoDate | None = Field(
         default=None,
         description="Date « courante » simulée (hors production uniquement), pour la démo.",
     )

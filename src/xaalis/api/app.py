@@ -12,7 +12,9 @@ from fastapi import FastAPI
 
 import xaalis.models  # noqa: F401 — enregistre TOUS les modèles ORM (clés étrangères)
 from xaalis import __version__
+from xaalis.api.body_limit import BodySizeLimitMiddleware
 from xaalis.api.middleware import RequestContextMiddleware
+from xaalis.api.openapi import install_openapi
 from xaalis.api.problems import install_problem_handlers
 from xaalis.api.resources import Resources
 from xaalis.api.routes import (
@@ -30,6 +32,7 @@ from xaalis.api.routes import (
 from xaalis.config import Settings, get_settings
 from xaalis.observability.logging import configure_logging, get_logger
 from xaalis.realtime.broker import EventBroker
+from xaalis.reconciliation.engine import MAX_STATEMENT_BYTES
 
 _log = get_logger(__name__)
 
@@ -67,8 +70,16 @@ def create_app(settings: Settings | None = None, resources: Resources | None = N
         "Ndiaga Cash).",
         lifespan=lifespan,
     )
+    # Ordre : le dernier ajouté s'exécute en premier. Le contexte (request_id, logs) englobe
+    # tout, y compris les 413 de la limite de taille.
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        default_limit=settings.max_body_bytes,
+        overrides={"/v1/admin/reconciliations": MAX_STATEMENT_BYTES},
+    )
     app.add_middleware(RequestContextMiddleware)
     install_problem_handlers(app)
+    install_openapi(app)
     app.include_router(health.router)
     app.include_router(admin.auth_router)
     app.include_router(admin.router)

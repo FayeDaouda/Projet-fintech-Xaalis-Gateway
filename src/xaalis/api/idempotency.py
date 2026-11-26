@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import Header, Request, Response
+from fastapi import Depends, Header, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,9 @@ from xaalis.merchants.service import MerchantPrincipal
 IDEMPOTENCY_HEADER = "Idempotency-Key"
 REPLAYED_HEADER = "Idempotent-Replayed"
 JSON = "application/json"
+# Marqueur lu par ``xaalis.api.openapi`` : l'en-tête est documenté comme obligatoire. Son
+# absence est traitée par l'application (400 idempotency_key_required, code stable).
+IDEMPOTENCY_REQUIRED: dict[str, object] = {"x-idempotency-required": True}
 
 IdempotencyKeyHeader = Annotated[
     str | None,
@@ -42,6 +45,16 @@ def require_key(key: str | None) -> str:
             400, "idempotency_key_required", f"L'en-tête {IDEMPOTENCY_HEADER} est obligatoire."
         )
     return key
+
+
+async def _required_idempotency_key(idempotency_key: IdempotencyKeyHeader = None) -> str:
+    return require_key(idempotency_key)
+
+
+# À déclarer AVANT la clé d'API dans la signature de la route : FastAPI résout les
+# dépendances dans l'ordre, une requête mal formée reçoit donc 400 sans consommer le
+# quota du client (sinon 429 masquerait l'erreur réelle).
+RequiredIdempotencyKey = Annotated[str, Depends(_required_idempotency_key)]
 
 
 async def run_idempotent(

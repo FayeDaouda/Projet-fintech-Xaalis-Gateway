@@ -6,7 +6,11 @@ from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 
 from xaalis.api.auth import SignedRequestDep
-from xaalis.api.idempotency import IdempotencyKeyHeader, require_key, run_idempotent
+from xaalis.api.idempotency import (
+    IDEMPOTENCY_REQUIRED,
+    RequiredIdempotencyKey,
+    run_idempotent,
+)
 from xaalis.api.problems import Problem
 from xaalis.api.resources import SessionDep
 from xaalis.payments.service import Scope
@@ -21,6 +25,7 @@ router = APIRouter(tags=["payouts"])
     status_code=201,
     response_model=PayoutView,
     summary="Virer tout le solde disponible (requête signée)",
+    openapi_extra=IDEMPOTENCY_REQUIRED,
     responses={
         400: {"model": Problem, "description": "Idempotency-Key manquante."},
         401: {"model": Problem, "description": "Clé ou signature HMAC invalide."},
@@ -28,12 +33,11 @@ router = APIRouter(tags=["payouts"])
     },
 )
 async def payout(
+    key: RequiredIdempotencyKey,
     request: Request,
     principal: SignedRequestDep,
     session: SessionDep,
-    idempotency_key: IdempotencyKeyHeader = None,
 ) -> Response:
-    key = require_key(idempotency_key)
 
     async def effect() -> tuple[int, BaseModel]:
         created = await create_payout(

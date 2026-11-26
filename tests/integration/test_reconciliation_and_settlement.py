@@ -50,7 +50,7 @@ async def _upload(
     client: httpx.AsyncClient, admin_headers: dict[str, str], csv: str, operator: str = "gopay"
 ) -> httpx.Response:
     return await client.post(
-        "/v1/admin/reconciliations",
+        "/v1/admin/reconciliations/statements",
         params={"date": TODAY.isoformat(), "operator": operator},
         content=csv.encode(),
         headers={**admin_headers, "Content-Type": "text/csv"},
@@ -188,7 +188,7 @@ async def test_upload_without_date_and_operator_is_rejected(
     client: httpx.AsyncClient, admin_headers: dict[str, str]
 ) -> None:
     response = await client.post(
-        "/v1/admin/reconciliations",
+        "/v1/admin/reconciliations/statements",
         content=b"operator_reference,amount\n",
         headers={**admin_headers, "Content-Type": "text/csv"},
     )
@@ -319,3 +319,10 @@ async def test_nightly_requests_yesterdays_reconciliation_once(
             select(func.count()).where(ReconciliationRun.statement_date == date(2031, 3, 1))
         )
     assert count == len(Operator)
+
+
+async def test_dates_must_be_iso_strings_not_numbers(
+    client: httpx.AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    response = await client.post("/v1/admin/settlements", json={"date": 0}, headers=admin_headers)
+    assert response.status_code == 422

@@ -7,15 +7,19 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, StrictInt, field_validator
+from pydantic import BaseModel, Field, StringConstraints
 
 from xaalis.api.auth import AnyKeyDep, SecretKeyDep, enforce_rate_limit
-from xaalis.api.idempotency import IdempotencyKeyHeader, require_key, run_idempotent
+from xaalis.api.idempotency import (
+    IDEMPOTENCY_REQUIRED,
+    IdempotencyKeyHeader,
+    RequiredIdempotencyKey,
+    run_idempotent,
+)
 from xaalis.api.pagination import DEFAULT_PAGE_SIZE, LimitQuery, Page, cursor_param
 from xaalis.api.problems import Problem
 from xaalis.api.resources import ResourcesDep, SessionDep
-from xaalis.api.schemas import ApiModel
-from xaalis.core.money import MAX_INTENT_AMOUNT, MIN_INTENT_AMOUNT
+from xaalis.api.schemas import ApiModel, IntentAmount
 from xaalis.core.phone import PHONE_PATTERN
 from xaalis.merchants.service import MerchantPrincipal
 from xaalis.payments import service as payments
@@ -24,6 +28,8 @@ from xaalis.payments.views import PaymentIntentView
 from xaalis.realtime.stream import parse_last_event_id, stream_intent
 
 INTENT_ID_PATTERN = r"^pi_[0-9A-HJKMNP-TV-Z]{26}$"
+MetadataKey = Annotated[str, StringConstraints(min_length=1, max_length=40)]
+MetadataValue = Annotated[str, StringConstraints(max_length=500)]
 IntentId = Annotated[
     str, Path(pattern=INTENT_ID_PATTERN, examples=["pi_01JD8Q3W7Z4K2N6R5T9V0XBCYA"])
 ]
@@ -47,21 +53,13 @@ _WRITE_ERRORS: dict[int | str, dict[str, object]] = {
 
 
 class PaymentIntentCreate(ApiModel):
-    # StrictInt : "1000", 1000.0 et true sont refusés — pas de float, ni de conversion (XG-01).
-    amount: StrictInt = Field(ge=MIN_INTENT_AMOUNT, le=MAX_INTENT_AMOUNT, examples=[12345])
+    # Entier JSON : 1000.5, "1000" et true sont refusés ; le domaine reçoit un int (XG-01).
+    amount: IntentAmount = Field(examples=[12345])
     currency: Literal["XOF"] = Field(examples=["XOF"])  # XG-02 : toute autre devise → 422
     payer_phone: str = Field(pattern=PHONE_PATTERN, examples=["+221771234512"])  # XG-03
     description: str | None = Field(default=None, max_length=255)
-    metadata: dict[str, str] = Field(default_factory=dict, max_length=20)
-
-    @field_validator("metadata")
-    @classmethod
-    def _bounded_metadata(cls, value: dict[str, str]) -> dict[str, str]:
-        for key, item in value.items():
-            if not 1 <= len(key) <= 40 or len(item) > 500:
-                msg = "metadata : clés de 1 à 40 caractères, valeurs de 500 caractères au plus"
-                raise ValueError(msg)
-        return value
+    # Limites exprimées dans le schéma (propertyNames, additionalProperties, maxProperties).
+    metadata: dict[MetadataKey, MetadataValue] = Field(default_factory=dict, max_length=20)
 
 
 def _scope(principal: MerchantPrincipal) -> payments.Scope:
@@ -78,16 +76,16 @@ def _actor(principal: MerchantPrincipal) -> str:
     response_model=PaymentIntentView,
     responses=_WRITE_ERRORS,
     summary="Créer un intent de paiement",
+    openapi_extra=IDEMPOTENCY_REQUIRED,
 )
 async def create_payment_intent(
+    key: RequiredIdempotencyKey,
     body: PaymentIntentCreate,
     request: Request,
     principal: SecretKeyDep,
     session: SessionDep,
     resources: ResourcesDep,
-    idempotency_key: IdempotencyKeyHeader = None,
 ) -> Response:
-    key = require_key(idempotency_key)
     # XG-13 : 20 créations par minute et par payeur ; le numéro est haché dans la clé Redis.
     payer_bucket = hashlib.sha256(body.payer_phone.encode()).hexdigest()[:24]
     await enforce_rate_limit(
@@ -118,16 +116,16 @@ async def create_payment_intent(
     response_model=PaymentIntentView,
     responses=_WRITE_ERRORS,
     summary="Confirmer : lance le paiement chez l'opérateur (asynchrone)",
+    openapi_extra=IDEMPOTENCY_REQUIRED,
 )
 async def confirm_payment_intent(
+    key: RequiredIdempotencyKey,
     intent_id: IntentId,
     request: Request,
     principal: SecretKeyDep,
     session: SessionDep,
     resources: ResourcesDep,
-    idempotency_key: IdempotencyKeyHeader = None,
 ) -> Response:
-    key = require_key(idempotency_key)
     # Disjoncteurs et taux de succès lus AVANT d'ouvrir la transaction (pas d'I/O sous verrou).
     snapshot = await resources.operator_health.snapshot()
 

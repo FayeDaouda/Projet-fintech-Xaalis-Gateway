@@ -16,6 +16,7 @@ PACKAGE = Path(__file__).resolve().parents[2] / "src" / "xaalis"
 TECHNICAL_MODULES_ALLOWED_FLOATS = frozenset(
     {
         "api/middleware.py",  # durée des requêtes
+        "api/openapi.py",  # bornes flottantes produites par FastAPI, normalisées en entiers
         "api/routes/health.py",  # timeout des sondes
         "infra/healthcheck.py",  # timeout et âge du battement de cœur
         "observability/metrics.py",  # seuils des histogrammes Prometheus

@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Literal
 
 from fastapi import APIRouter, Request, Response
-from pydantic import BaseModel, Field, StrictInt
+from pydantic import BaseModel, Field
 
 from xaalis.api.auth import SecretKeyDep, SignedRequestDep
-from xaalis.api.idempotency import IdempotencyKeyHeader, require_key, run_idempotent
+from xaalis.api.idempotency import (
+    IDEMPOTENCY_REQUIRED,
+    RequiredIdempotencyKey,
+    run_idempotent,
+)
 from xaalis.api.problems import Problem
 from xaalis.api.resources import SessionDep
-from xaalis.api.schemas import ApiModel
-from xaalis.core.money import MAX_INTENT_AMOUNT
+from xaalis.api.schemas import ApiModel, RefundAmount
 from xaalis.ledger.service import merchant_balances
 from xaalis.payments.service import Scope
 from xaalis.refunds.service import create_refund
@@ -23,7 +26,7 @@ router = APIRouter(tags=["refunds"])
 
 class RefundCreate(ApiModel):
     payment_intent: str = Field(pattern=r"^pi_[0-9A-HJKMNP-TV-Z]{26}$")
-    amount: Annotated[StrictInt | None, Field(ge=1, le=MAX_INTENT_AMOUNT)] = Field(
+    amount: RefundAmount | None = Field(
         default=None, description="Montant à rembourser ; par défaut, tout le reste remboursable."
     )
     reason: str | None = Field(default=None, max_length=255)
@@ -34,6 +37,7 @@ class RefundCreate(ApiModel):
     status_code=201,
     response_model=RefundView,
     summary="Rembourser tout ou partie d'un paiement (requête signée)",
+    openapi_extra=IDEMPOTENCY_REQUIRED,
     responses={
         400: {"model": Problem, "description": "Idempotency-Key manquante."},
         401: {"model": Problem, "description": "Clé ou signature HMAC invalide."},
@@ -47,13 +51,12 @@ class RefundCreate(ApiModel):
     },
 )
 async def refund(
+    key: RequiredIdempotencyKey,
     body: RefundCreate,
     request: Request,
     principal: SignedRequestDep,
     session: SessionDep,
-    idempotency_key: IdempotencyKeyHeader = None,
 ) -> Response:
-    key = require_key(idempotency_key)
 
     async def effect() -> tuple[int, BaseModel]:
         created = await create_refund(

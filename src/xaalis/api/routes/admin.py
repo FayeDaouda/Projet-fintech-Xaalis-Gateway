@@ -79,7 +79,9 @@ async def ledger_health(_: AdminDep, session: SessionDep) -> LedgerHealthOut:
 
 
 class AdminLogin(ApiModel):
-    email: str = Field(min_length=3, max_length=254, pattern=r"^[^@\s]+@[^@\s]+$")
+    # Classes explicites plutôt que \s : JSON Schema (ECMAScript) et Pydantic (Rust) ne
+    # mettent pas les mêmes caractères dans \s (ex. U+0085), le contrat divergerait.
+    email: str = Field(min_length=3, max_length=254, pattern=r"^[^@ \t\n\r\f\v]+@[^@ \t\n\r\f\v]+$")
     password: SecretStr = Field(min_length=1, max_length=256)
 
 
