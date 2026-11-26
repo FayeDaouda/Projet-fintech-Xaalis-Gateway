@@ -152,7 +152,7 @@ async def rotate_secret_key(
     Si la clé courante expirait déjà plus tôt (rotation précédente), on ne prolonge pas
     sa durée de vie : on garde l'échéance la plus proche.
     """
-    current = await session.get(ApiKey, principal.key_id, with_for_update=True)
+    current = await session.get(ApiKey, principal.key_id, with_for_update={"key_share": True})
     if current is None:  # pragma: no cover — la clé vient d'être authentifiée
         msg = f"clé {principal.key_id} introuvable"
         raise LookupError(msg)

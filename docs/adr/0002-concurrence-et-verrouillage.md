@@ -91,3 +91,17 @@ ordre ; aucune route ne prend de verrou elle-même.
   (PostgreSQL le détecte et annule l'une des transactions avec 40P01, traité en 503).
 - Les verrous consultatifs par payeur reposent sur un hachage 64 bits : une collision ne
   fait que sérialiser deux payeurs, sans incidence sur l'exactitude.
+
+## Addendum (2026-11-26) — `FOR NO KEY UPDATE` plutôt que `FOR UPDATE`
+
+Le test des 50 remboursements concurrents a révélé un interblocage : chaque requête
+insère d'abord sa clé d'idempotence, dont la clé étrangère vers `merchant_environments`
+pose un verrou **`FOR KEY SHARE`** sur la ligne du marchand ; le `FOR UPDATE` demandé
+ensuite sur cette même ligne est incompatible avec les `KEY SHARE` des autres requêtes.
+Chacune attendait les autres jusqu'au `lock_timeout` (49 réponses 503 sur 50).
+
+Les verrous de ligne (environnement marchand, intent, clé d'API) sont donc pris en
+**`FOR NO KEY UPDATE`** : exclusif entre écrivains (la sérialisation voulue est intacte),
+mais compatible avec les vérifications de clés étrangères. C'est le mode adapté puisque ces
+lignes ne voient jamais leur clé primaire modifiée. Les erreurs de contention résiduelles
+(`55P03`, `40P01`) sont traduites en 503 avec `Retry-After`.

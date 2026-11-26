@@ -58,7 +58,7 @@ class Scope:
     livemode: bool
 
 
-async def _db_now(session: AsyncSession) -> datetime:
+async def db_now(session: AsyncSession) -> datetime:
     # now() est figé au début de la transaction : une seule horloge, celle de la base.
     now: datetime | None = await session.scalar(select(func.now()))
     assert now is not None  # noqa: S101 — now() ne renvoie jamais NULL
@@ -125,7 +125,7 @@ async def _transition(
     intent.status = next_status(previous, event).value
     for name, value in changes.items():
         setattr(intent, name, value)
-    intent.updated_at = await _db_now(session)
+    intent.updated_at = await db_now(session)
     await session.flush()
     await _record(
         session, intent, from_status=previous, cause=event.value, actor=actor, details=details
@@ -136,8 +136,11 @@ async def _transition(
 async def lock_intent(
     session: AsyncSession, intent_id: str, scope: Scope | None = None
 ) -> PaymentIntent:
-    """``SELECT … FOR UPDATE`` : sérialise toutes les transitions d'un même intent."""
-    query = select(PaymentIntent).where(PaymentIntent.id == intent_id).with_for_update()
+    """``SELECT … FOR NO KEY UPDATE`` : sérialise toutes les transitions d'un même intent,
+    sans bloquer les vérifications de clés étrangères des tables qui le référencent."""
+    query = (
+        select(PaymentIntent).where(PaymentIntent.id == intent_id).with_for_update(key_share=True)
+    )
     if scope is not None:
         query = query.where(
             PaymentIntent.merchant_id == scope.merchant_id,
@@ -168,7 +171,7 @@ async def create_intent(
         msg = f"devise non prise en charge : {currency} (seul {CURRENCY} est accepté)"
         raise UnsupportedCurrencyError(msg)
     breakdown = fee_breakdown(ensure_intent_amount(amount))
-    now = await _db_now(session)
+    now = await db_now(session)
     intent = PaymentIntent(
         id=new_id("pi"),
         merchant_id=scope.merchant_id,
@@ -206,7 +209,7 @@ async def confirm_intent(
     """
     intent = await lock_intent(session, intent_id, scope)
     next_status(IntentStatus(intent.status), IntentEvent.CONFIRM)  # 409 avant tout autre contrôle
-    if await _db_now(session) >= intent.expires_at:
+    if await db_now(session) >= intent.expires_at:
         raise IntentExpiredError("l'intent a expiré et ne peut plus être confirmé")
 
     # XG-14 : verrou consultatif par payeur (ordre : intent puis payeur), puis comptage.
@@ -259,7 +262,7 @@ async def select_operator(
     if intent.operator != operator.value:
         previous = intent.operator
         intent.operator = operator.value
-        intent.updated_at = await _db_now(session)
+        intent.updated_at = await db_now(session)
         await session.flush()
         await _history(
             session,
@@ -297,7 +300,7 @@ async def apply_operator_outcome(
             IntentEvent.OPERATOR_SUCCEEDED,
             actor=f"operator:{intent.operator}",
             operator_reference=operator_reference,
-            succeeded_at=await _db_now(session),
+            succeeded_at=await db_now(session),
         )
     return await _transition(
         session,
@@ -308,12 +311,32 @@ async def apply_operator_outcome(
     )
 
 
+async def apply_refund(
+    session: AsyncSession,
+    intent: PaymentIntent,
+    event: IntentEvent,
+    *,
+    amount: int,
+    actor: str,
+    refund_id: str,
+) -> PaymentIntent:
+    """Transition de remboursement sur un intent **déjà verrouillé** (XG-09 vérifiée avant)."""
+    return await _transition(
+        session,
+        intent,
+        event,
+        actor=actor,
+        details={"refund_id": refund_id, "amount": amount},
+        amount_refunded=intent.amount_refunded + amount,
+    )
+
+
 async def cancel_intent(
     session: AsyncSession, scope: Scope, intent_id: str, *, actor: str
 ) -> PaymentIntent:
     intent = await lock_intent(session, intent_id, scope)
     next_status(IntentStatus(intent.status), IntentEvent.CANCEL)
-    if await _db_now(session) >= intent.expires_at:
+    if await db_now(session) >= intent.expires_at:
         raise IntentExpiredError("l'intent a expiré et ne peut plus être annulé")
     return await _transition(session, intent, IntentEvent.CANCEL, actor=actor)
 

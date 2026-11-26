@@ -16,6 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from xaalis.core.errors import DomainError
@@ -130,6 +131,10 @@ DOMAIN_ERROR_STATUS: Mapping[str, int] = {
     "no_eligible_operator": 422,
     "invalid_signature": 401,
     "malformed_callback": 400,
+    "refund_window_expired": 409,
+    "refund_exceeds_amount": 409,
+    "insufficient_balance": 409,
+    "unsafe_webhook_url": 422,
 }
 
 
@@ -178,6 +183,30 @@ async def _on_validation_error(request: Request, exc: Exception) -> JSONResponse
     )
 
 
+# Contention passagère (ADR 0002) : le client peut simplement réessayer.
+_RETRYABLE_SQLSTATES: Mapping[str, str] = {
+    "55P03": "lock_timeout",  # lock_timeout dépassé
+    "40P01": "deadlock_detected",
+    "40001": "serialization_failure",
+}
+
+
+async def _on_database_error(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, DBAPIError)  # noqa: S101
+    state = getattr(exc.orig, "sqlstate", None) or getattr(exc.orig, "pgcode", None)
+    code = _RETRYABLE_SQLSTATES.get(str(state))
+    if code is None:
+        return await _on_unhandled(request, exc)
+    _log.warning("database_contention", sqlstate=state)
+    return problem_response(
+        request,
+        status=503,
+        code=code,
+        detail="Ressource momentanément verrouillée, réessayez.",
+        headers={"Retry-After": "1"},
+    )
+
+
 async def _on_unhandled(request: Request, exc: Exception) -> JSONResponse:
     # Le détail technique va dans les logs, jamais dans la réponse (OWASP API3/API8).
     _log.exception("unhandled_exception", exc_type=type(exc).__name__)
@@ -192,6 +221,7 @@ def _to_field_error(err: Mapping[str, Any]) -> FieldError:
 def install_problem_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ProblemError, _on_problem)
     app.add_exception_handler(DomainError, _on_domain_error)
+    app.add_exception_handler(DBAPIError, _on_database_error)
     app.add_exception_handler(StarletteHTTPException, _on_http_exception)
     app.add_exception_handler(RequestValidationError, _on_validation_error)
     app.add_exception_handler(Exception, _on_unhandled)
