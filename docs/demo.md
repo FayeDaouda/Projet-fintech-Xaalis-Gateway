@@ -34,7 +34,8 @@ remet les chiffres à zéro entre deux prises.
 | 2:40 | **Webhooks** | Activer la panne, payer dans la boutique, revenir | 8 points rouges puis « Dead letter » ; désactiver la panne, « Rejouer » → « Traité » |
 | 3:30 | **Boutique** puis **Rapprochement** | 5 ou 6 paiements, puis « Lancer le rapprochement » | Les anomalies injectées sont toutes cochées : 4 types d'écarts détectés ; export CSV |
 | 4:15 | **Rapprochement** puis **Vue d'ensemble** | « Régler le jour même » (409), « Simuler J+1 », puis « Virer » | Jours de Dakar (XG-15) ; seules les lignes saines sont réglées ; grand livre à somme nulle (XG-16) |
-| 4:45 | Conclusion | CI verte, `docs/adr/` | 600+ tests sur PostgreSQL réel, Schemathesis sans écart, ADR |
+| 4:35 | **Bonus** | Boutique : puce « 77 000 00 00 · signalé » ; Grafana (:3000) ; une trace dans Jaeger (:16686) | Scoring gRPC avant tout débit (deadline 150 ms, repli justifié) ; une seule trace traverse 5 services, outbox comprise |
+| 4:50 | Conclusion | CI verte, `docs/adr/` | 670+ tests sur PostgreSQL réel, Schemathesis sans écart, 14 ADR |
 
 Le rapprochement porte sur tous les paiements du jour : avec un seul ou deux paiements, les
 anomalies du relevé piégé peuvent tous les toucher et rien n'est réglé à J+1. D'où les
@@ -51,7 +52,7 @@ quelques paiements supplémentaires avant l'étape 5.
 | 2:40 | **4. Dead letter** | Compteur de tentatives jusqu'à 8, puis `delivered` après rejeu | Outbox transactionnel ; signature `t=…,v1=…` ; 8 tentatives avec jitter ; le marchand déduplique par `event_id` |
 | 3:30 | **5. Rapprochement** | Anomalies injectées et écarts détectés (4 types) | Relevé CSV piégé, Polars, `Int64` strict ; rapport exportable en CSV |
 | 4:15 | **6. T+1** | Refus le jour même (409), règlement à J+1 des seules lignes saines, virement | Jours comptables de Dakar (XG-15) ; grand livre équilibré, somme nulle (XG-16) |
-| 4:45 | Conclusion | CI verte, `docs/adr/` | 600+ tests sur PostgreSQL réel, Schemathesis sans écart, ADR |
+| 4:45 | Conclusion | CI verte, `docs/adr/`, Grafana | 670+ tests sur PostgreSQL réel, Schemathesis sans écart, 14 ADR |
 
 ## Après le tournage
 
