@@ -1,6 +1,6 @@
 # Architecture
 
-> Document vivant : complété à chaque lot. Version actuelle : lots 4, 1, 2 et 3.
+> Document vivant : complété à chaque lot. Version actuelle : lots 1 à 5.
 
 ## Processus
 
@@ -37,6 +37,8 @@
 | `xaalis.payments` | Intents : machine à états (table unique), cycle de vie, historique, vue publique | `core`, `routing`, `outbox` |
 | `xaalis.routing` | Catalogue, plan de routage (coût, taux de succès, disjoncteurs), santé partagée dans Redis | `core` |
 | `xaalis.operators` | Client sortant, dispatcher (bascule, épinglage), adaptateurs et traitement des callbacks | `payments`, `ledger`, `outbox`, `routing` |
+| `xaalis.refunds` | Remboursements (XG-08 à XG-11) : verrous, contrôles, écritures | `payments`, `ledger`, `outbox` |
+| `xaalis.webhooks` | Endpoints (secrets chiffrés), SSRF, diffusion, livraison signée, relances, rejeu | `outbox`, `core` |
 | `xaalis.outbox` | Outbox transactionnel (événements et commandes internes) | `infra` |
 | `xaalis.idempotency` | Clés d'idempotence en base (ADR 0005) | `infra` |
 | `xaalis.seed` | Jeu de démonstration idempotent | `admin`, `merchants` |

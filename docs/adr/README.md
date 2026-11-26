@@ -13,5 +13,6 @@ nouvel ADR qui le déclare « remplacé ».
 | [0005](0005-idempotence-des-requetes.md) | Idempotence en base, dans la transaction de l'effet | accepté |
 | [0006](0006-limitation-de-debit.md) | Limitation de débit : fenêtre glissante exacte (Redis + Lua) | accepté |
 | [0007](0007-routage-disjoncteur-et-bascule.md) | Routage, disjoncteur et bascule sans double débit | accepté |
-| 0008 | Politique de relance des webhooks | à rédiger |
-| 0009 | Traitement des relevés : Polars ou pandas | à rédiger |
+| [0008](0008-remboursements-et-solde-marchand.md) | Remboursements : comptes débités, verrous, ordre des contrôles | accepté |
+| [0009](0009-relances-des-webhooks.md) | Webhooks : signature, relances sur 24 h, dead letter, rejeu | accepté |
+| 0010 | Traitement des relevés : Polars ou pandas | à rédiger |

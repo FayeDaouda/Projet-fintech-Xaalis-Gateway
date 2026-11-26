@@ -93,6 +93,30 @@ httpx.post(
   toujours masqués en sortie (`+221 77 *** ** 12`).
 - **Limites** (XG-13) : 100 requêtes/min par clé, 20 créations d'intent/min par payeur.
 
+## Webhooks : guide du marchand
+
+1. Enregistrer une URL : `POST /v1/webhook-endpoints` `{"url": "...", "events": ["payment.succeeded", "refund.succeeded"]}`.
+   La réponse contient le **secret** (`whsec_…`), affiché une seule fois. En live : HTTPS
+   obligatoire, adresses privées interdites.
+2. **Vérifier chaque envoi** : `X-Xaalis-Signature: t=<ts>,v1=<hex>` où
+   `hex = HMAC-SHA-256(secret, f"{ts}.{corps_brut}")`. Rejeter si la signature diffère
+   (comparaison en temps constant) ou si `|maintenant − ts| > 300 s`.
+3. **Répondre 2xx en moins de 5 s**, puis traiter de façon asynchrone. Sinon : 8 tentatives
+   sur ≈ 24 h (1 min, 5 min, 30 min, 2 h, 4 h, 7 h, 10 h, ±20 %), puis dead letter ;
+   `POST /v1/webhook-events/{id}/replay` renvoie un événement, `GET /v1/webhook-events/{id}`
+   montre l'état des livraisons.
+4. **Dédupliquer par `id`** (`evt_…`, aussi dans `X-Xaalis-Event-Id`) : la livraison est
+   « au moins une fois ».
+5. **L'ordre n'est pas garanti.** Un `payment.processing` peut arriver après le
+   `payment.succeeded`. Règles à appliquer :
+   - ne jamais faire régresser un statut : comparer le `created_at` de l'événement à celui
+     du dernier traité pour le même objet et ignorer le plus ancien ;
+   - les états finaux (`succeeded`, `failed`, `refunded`…) l'emportent sur les intermédiaires ;
+   - en cas de doute, relire l'état de référence : `GET /v1/payment-intents/{id}`.
+
+   Le service `merchant-demo` applique exactement ces règles ; ses événements reçus sont
+   visibles sur http://localhost:8200/events (`POST /_fail` le met en panne pour la démo).
+
 **Rotation** : `POST /v1/api-keys/rotate` renvoie une nouvelle clé secrète ; l'ancienne reste
 valide 24 h.
 
@@ -133,6 +157,8 @@ Voir [`.env.example`](.env.example). Toutes sont préfixées par `XAALIS_`.
 | `XAALIS_DEMO_TEST_*_KEY` | vide (générées) | Clés de test imposées pour le marchand de démo |
 | `XAALIS_OPERATOR_SECRET_{GOPAY,TERANGA,NDIAGA}` | `dev-only-…` | Secrets de signature des callbacks, partagés avec le simulateur |
 | `XAALIS_BREAKER_FAILURE_THRESHOLD` / `_COOLDOWN_SECONDS` | `5` / `30` | Disjoncteur par opérateur |
+| `XAALIS_WEBHOOK_ENCRYPTION_KEY` | `dev-only-…` | Chiffrement des secrets d'endpoints au repos |
+| `XAALIS_WEBHOOK_RETRY_SCHEDULE_SECONDS` | `[60,300,1800,7200,14400,25200,36000]` | Délais entre tentatives ; démo : `[2,2,2,2,2,2,2]` |
 | `XAALIS_LOG_LEVEL` | `INFO` | |
 
 ## Développement
