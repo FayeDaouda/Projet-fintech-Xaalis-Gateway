@@ -22,6 +22,7 @@ Conformément à la section 10 de l'énoncé.
 | Lot 6 : relevés piégés, rapprochement Polars, T+1, virements, ADR 0010 | Génération assistée | ☐ |
 | Lot 7 : SSE (LISTEN/NOTIFY), GraphQL Strawberry + DataLoader, ADR 0011 | Génération assistée | ☐ |
 | Conformité du contrat : Schemathesis, limite de taille, OpenAPI exact | Génération assistée | ☐ |
+| Test de charge Locust, profilage, optimisations, docs/load-test.md | Génération assistée, mesures réelles | ☐ |
 
 ## Propositions corrigées ou rejetées
 

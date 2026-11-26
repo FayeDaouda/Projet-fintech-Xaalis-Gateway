@@ -255,6 +255,17 @@ Points de contrat notables :
 - corps limités à 1 Mio (5 Mio pour `POST /v1/admin/reconciliations/statements`) : 413 ;
 - une `Idempotency-Key` manquante vaut 400 **avant** toute authentification ou limite de débit.
 
+## Test de charge
+
+```bash
+docker compose up -d --build
+scripts/loadtest.sh 200 2m 200   # 200 utilisateurs à 1 création/s, 2 minutes, pool de 200 marchands
+```
+
+Résultat sur la machine de développement : **200 créations/s soutenues, 0 erreur**, p95
+670 ms (objectif 150 ms non atteint sur cette machine). Analyse complète du goulot,
+hypothèses testées et pistes : [docs/load-test.md](docs/load-test.md).
+
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — modules et dépendances
@@ -263,4 +274,17 @@ Points de contrat notables :
 
 ## Limites connues
 
-À compléter au fil du projet.
+- **Latence sous charge** : p95 de 670 ms à 200 créations/s sur un portable où toute la pile
+  et le générateur de charge partagent 8 cœurs sous virtualisation ([docs/load-test.md](docs/load-test.md)).
+- **Remboursements synchrones** : réputés réussis immédiatement ; un vrai reversement
+  passerait par l'outbox et l'opérateur, comme les débits ([ADR 0008](docs/adr/0008-remboursements-et-solde-marchand.md)).
+- **Relevés du simulateur en mémoire** : un redémarrage du service `operators` efface les
+  charges de la journée (le rapprochement d'un relevé fourni en CSV n'est pas concerné).
+- **Rotation du pepper** non prise en charge : changer `XAALIS_API_KEY_PEPPER` invalide toutes
+  les clés existantes ([ADR 0004](docs/adr/0004-hachage-des-cles-et-des-mots-de-passe.md)).
+- **Rôle PostgreSQL unique** : l'application utilise le propriétaire du schéma ; un rôle
+  restreint (`SELECT, INSERT` sur le grand livre) renforcerait l'immutabilité garantie par
+  les triggers ([ADR 0001](docs/adr/0001-modele-du-grand-livre.md)).
+- **Révocation d'une clé** : jusqu'à 5 s de délai (cache par processus, configurable,
+  `XAALIS_API_KEY_CACHE_SECONDS=0` pour le désactiver).
+- **Bonus non réalisés** : scoring gRPC, traces OpenTelemetry et tableau de bord Grafana.
