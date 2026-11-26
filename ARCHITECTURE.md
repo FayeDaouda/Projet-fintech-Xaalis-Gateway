@@ -21,6 +21,7 @@
                  │     api      │ ◀────────────────── │  operators   │
                  └──────────────┘                     └──────────────┘
                  worker ──gRPC, deadline 150 ms──▶ risk (scoring, interne, ADR 0013)
+                 tous ──OTLP──▶ jaeger ; prometheus ◀── /metrics (api, worker) ; grafana (ADR 0014)
                  Redis : limitation de débit, état des disjoncteurs
 ```
 

@@ -28,6 +28,9 @@ de l'API et du worker. Aucun fichier `.env` n'est nécessaire en local.
 | `risk` | Scoring de risque **gRPC** (bonus), interne : appelé par le worker, deadline 150 ms | — (aucun port publié) |
 | `db` | PostgreSQL 16 | `localhost:5432` |
 | `redis` | Limitation de débit, état des disjoncteurs | `localhost:6379` |
+| `grafana` | Tableau de bord d'exploitation provisionné (bonus) | http://localhost:3000 |
+| `jaeger` | Traces OpenTelemetry de bout en bout (bonus) | http://localhost:16686 |
+| `prometheus` | Collecte des métriques de l'API et du worker | http://localhost:9090 |
 
 ## Console web
 
@@ -181,6 +184,21 @@ docker compose stop risk
 XAALIS_RISK_LATENCY_MS=400 docker compose up -d risk
 ```
 
+## Observabilité : traces OpenTelemetry et Grafana (bonus)
+
+- **Grafana**, http://localhost:3000 : le tableau de bord « Xaalis — exploitation » s'ouvre
+  directement (lecture anonyme). Il montre le débit et la latence p95 par route face au seuil de
+  150 ms, les intents par statut, les disjoncteurs, les webhooks en attente et en dead letter,
+  les écarts de rapprochement, ainsi que les décisions et la durée du scoring gRPC.
+- **Jaeger**, http://localhost:16686 : une **trace unique** suit un paiement à travers l'API,
+  l'outbox, le worker, le scoring gRPC, l'opérateur, son callback et le webhook reçu par le
+  marchand. Le contexte de trace traverse l'outbox dans la même transaction que l'événement
+  ([ADR 0014](docs/adr/0014-traces-opentelemetry-et-grafana.md)).
+- Chaque log JSON émis pendant une requête porte son `trace_id` : on passe du log à la trace.
+
+Le tableau de bord est généré par `scripts/build_dashboard.py` (vérifié en CI). Pour
+désactiver les traces : `XAALIS_OTEL_ENABLED=false`.
+
 ## Rapprochement, règlement T+1 et virements
 
 ```bash
@@ -251,6 +269,10 @@ Voir [`.env.example`](.env.example). Toutes sont préfixées par `XAALIS_`.
 | `XAALIS_BREAKER_FAILURE_THRESHOLD` / `_COOLDOWN_SECONDS` | `5` / `30` | Disjoncteur par opérateur |
 | `XAALIS_WEBHOOK_ENCRYPTION_KEY` | `dev-only-…` | Chiffrement des secrets d'endpoints au repos |
 | `XAALIS_WEBHOOK_RETRY_SCHEDULE_SECONDS` | `[60,300,1800,7200,14400,25200,36000]` | Délais entre tentatives ; démo : `[2,2,2,2,2,2,2]` |
+| `XAALIS_RISK_FAIL_OPEN_MAX_AMOUNT` | `100000` | Repli du scoring : plafond de l'acceptation sans score (ADR 0013) |
+| `XAALIS_RISK_BLOCKLIST` / `XAALIS_RISK_LATENCY_MS` | `["+221770000000"]` / `0` | Service `risk` : liste noire, latence injectée (démo) |
+| `XAALIS_OTEL_ENABLED` / `XAALIS_OTEL_SAMPLE_PERMILLE` | `true` (compose) / `1000` | Traces OpenTelemetry, échantillonnage en ‰ |
+| `GRAFANA_ADMIN_PASSWORD` | `dev-only-…` | Compte admin de Grafana (la lecture est anonyme) |
 | `XAALIS_LOG_LEVEL` | `INFO` | |
 
 ## Développement
@@ -303,7 +325,8 @@ scripts/loadtest.sh 200 2m 200   # 200 utilisateurs à 1 création/s, 2 minutes,
 
 Résultat sur la machine de développement : **200 créations/s soutenues, 0 erreur**, p95
 670 ms (objectif 150 ms non atteint sur cette machine). Analyse complète du goulot,
-hypothèses testées et pistes : [docs/load-test.md](docs/load-test.md).
+hypothèses testées et pistes : [docs/load-test.md](docs/load-test.md). Mesuré avant l'ajout
+des traces : pour comparer à l'identique, `XAALIS_OTEL_ENABLED=false docker compose up -d`.
 
 ## Vidéo de démonstration
 
