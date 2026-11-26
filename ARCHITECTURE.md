@@ -48,7 +48,7 @@
 | `xaalis.seed` | Jeu de démonstration idempotent | `admin`, `merchants` |
 | `xaalis.api` | Application FastAPI, middleware, erreurs RFC 9457, authentification, routes | tous |
 | `xaalis.worker` | Boucle des tâches de fond | `infra`, domaines |
-| `xaalis_sim` | Simulateurs (opérateurs, marchand de démo), hors périmètre de couverture | `observability` |
+| `xaalis_sim` | Simulateurs (opérateurs, marchand de démo et sa console web — ADR 0012), hors périmètre de couverture | `observability` |
 
 Règle de dépendance : les modules de domaine (`core`, `ledger`, `merchants`, puis `payments`…)
 ne dépendent ni de FastAPI ni de la couche HTTP ; seule `xaalis.api` les assemble.

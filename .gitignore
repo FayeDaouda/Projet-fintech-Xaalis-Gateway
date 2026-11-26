@@ -19,6 +19,9 @@ build/
 .env.*
 !.env.example
 
+# Captures d'écran des vérifications d'interface (Playwright)
+.playwright-mcp/
+
 # Éditeurs / OS
 .idea/
 .vscode/

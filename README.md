@@ -24,9 +24,28 @@ de l'API et du worker. Aucun fichier `.env` n'est nécessaire en local.
 | `api` | API publique (REST, GraphQL, SSE) | http://localhost:8000 — docs : `/docs` |
 | `worker` | Outbox, webhooks, expiration, rapprochement, règlement | — |
 | `operators` | Simulateur des trois opérateurs | http://localhost:8100 |
-| `merchant-demo` | Marchand de démonstration (réception des webhooks) | http://localhost:8200 |
+| `merchant-demo` | Marchand de démonstration : **console web** et réception des webhooks | http://localhost:8200 |
 | `db` | PostgreSQL 16 | `localhost:5432` |
 | `redis` | Limitation de débit, état des disjoncteurs | `localhost:6379` |
+
+## Console web
+
+Ouvrez **http://localhost:8200** une fois la pile démarrée : une console complète, sans
+aucune configuration (le marchand « Maison Sandaga » est créé automatiquement par l'API
+d'administration, son endpoint de webhooks enregistré).
+
+| Écran | Ce qu'on y voit |
+|---|---|
+| **Boutique** | Panier, paiement Mobile Money, suivi en direct par SSE jusqu'au reçu (opérateur choisi, commission, net, webhook reçu) |
+| **Vue d'ensemble** | Revenus, volumes par jour et par opérateur, taux de succès (GraphQL), soldes et virement |
+| **Paiements** | Liste filtrable, historique des transitions, remboursement partiel ou total |
+| **Webhooks** | Événements reçus et vérifiés, panne simulée du marchand, relances, dead letter, rejeu |
+| **Rapprochement & T+1** | Relevés piégés, écarts détectés face aux anomalies injectées, règlement, santé du grand livre |
+| **Simulateur opérateurs** | Panne d'un opérateur (bascule), mode présentation (callbacks en 1,5 s, sans aléa) |
+
+Le navigateur ne détient aucun secret : il parle au serveur du marchand, qui signe et relaie
+vers la passerelle ([ADR 0012](docs/adr/0012-console-web-du-marchand-de-demonstration.md)).
+Thème clair ou sombre, utilisable sur mobile.
 
 ## Comptes de démonstration
 
@@ -271,7 +290,8 @@ hypothèses testées et pistes : [docs/load-test.md](docs/load-test.md).
 Lien : **_à renseigner après le tournage_**.
 
 Le scénario imposé (SSE, panne et bascule, remboursement partiel, dead letter et rejeu,
-rapprochement avec écarts, règlement T+1) est déroulé par un script, rejouable à volonté :
+rapprochement avec écarts, règlement T+1) se joue dans la [console web](#console-web), ou
+par un script, rejouable à volonté :
 
 ```bash
 docker compose down -v

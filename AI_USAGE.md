@@ -23,6 +23,7 @@ Conformément à la section 10 de l'énoncé.
 | Lot 7 : SSE (LISTEN/NOTIFY), GraphQL Strawberry + DataLoader, ADR 0011 | Génération assistée | ☐ |
 | Conformité du contrat : Schemathesis, limite de taille, OpenAPI exact | Génération assistée | ☐ |
 | Test de charge Locust, profilage, optimisations, docs/load-test.md | Génération assistée, mesures réelles | ☐ |
+| Console web du marchand de démo (BFF, interface, tests), ADR 0012 | Génération assistée, vérifiée dans le navigateur | ☐ |
 
 ## Propositions corrigées ou rejetées
 

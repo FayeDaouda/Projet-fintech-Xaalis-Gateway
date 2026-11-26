@@ -2,7 +2,8 @@
 
 Scénario imposé : paiement réussi suivi en SSE, panne de Ndiaga Cash et bascule,
 remboursement partiel, webhook en dead letter puis rejoué, rapprochement avec écarts,
-règlement T+1. Tout est déroulé par [`scripts/demo.sh`](../scripts/demo.sh), qui marque une
+règlement T+1. Deux façons de le dérouler : dans la **console web** (option A, la plus
+parlante à l'écran) ou par [`scripts/demo.sh`](../scripts/demo.sh) (option B), qui marque une
 pause avant chaque étape : vous commentez, puis Entrée.
 
 ## Préparation (hors caméra)
@@ -18,7 +19,28 @@ Le script crée son propre marchand : il est rejouable autant de fois que néces
 À ouvrir dans le navigateur, pour l'introduction : http://localhost:8000/docs (contrat
 OpenAPI), et éventuellement http://localhost:8000/metrics.
 
-## Déroulé conseillé
+## Option A — dans la console web (recommandée pour la vidéo)
+
+Ouvrir http://localhost:8200, puis **Simulateur opérateurs → Mode présentation** (callbacks
+en 1,5 s, sans aléa : le tournage est reproductible). « Nouveau marchand », en bas du menu,
+remet les chiffres à zéro entre deux prises.
+
+| Temps | Écran | Geste | À dire |
+|---|---|---|---|
+| 0:00 | Terminal + `/docs` | `docker compose ps`, contrat OpenAPI | Une API pour trois opérateurs ; tout démarre avec une commande |
+| 0:30 | **Boutique** | 2 articles, puce « 78 · Go Pay », Payer | Chronologie et flux SSE en direct (clé publique) ; reçu : commission (XG-04), numéro masqué (XG-03), webhook vérifié |
+| 1:15 | **Simulateur** puis **Boutique** | Panne Ndiaga (2 min), puis payer avec « 77 » | Ndiaga est le moins cher (XG-06) mais en panne : badge « bascule », Go Pay ; jamais de double débit (ADR 0007) |
+| 2:00 | **Paiements** | Ouvrir le premier paiement, rembourser 3 000 | Requête signée HMAC et idempotente ; XG-08 à XG-11 ; historique « Remb. partiel » |
+| 2:40 | **Webhooks** | Activer la panne, payer dans la boutique, revenir | 8 points rouges puis « Dead letter » ; désactiver la panne, « Rejouer » → « Traité » |
+| 3:30 | **Boutique** puis **Rapprochement** | 5 ou 6 paiements, puis « Lancer le rapprochement » | Les anomalies injectées sont toutes cochées : 4 types d'écarts détectés ; export CSV |
+| 4:15 | **Rapprochement** puis **Vue d'ensemble** | « Régler le jour même » (409), « Simuler J+1 », puis « Virer » | Jours de Dakar (XG-15) ; seules les lignes saines sont réglées ; grand livre à somme nulle (XG-16) |
+| 4:45 | Conclusion | CI verte, `docs/adr/` | 600+ tests sur PostgreSQL réel, Schemathesis sans écart, ADR |
+
+Le rapprochement porte sur tous les paiements du jour : avec un seul ou deux paiements, les
+anomalies du relevé piégé peuvent tous les toucher et rien n'est réglé à J+1. D'où les
+quelques paiements supplémentaires avant l'étape 5.
+
+## Option B — par le script
 
 | Temps | Étape | À montrer | À dire |
 |---|---|---|---|
