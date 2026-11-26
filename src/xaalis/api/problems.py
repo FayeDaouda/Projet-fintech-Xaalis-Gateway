@@ -135,6 +135,8 @@ DOMAIN_ERROR_STATUS: Mapping[str, int] = {
     "refund_exceeds_amount": 409,
     "insufficient_balance": 409,
     "unsafe_webhook_url": 422,
+    "settlement_too_early": 409,
+    "invalid_statement": 422,
 }
 
 
