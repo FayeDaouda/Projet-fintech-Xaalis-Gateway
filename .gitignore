@@ -27,3 +27,8 @@ build/
 # Artefacts de test de charge
 loadtest/results/*.csv
 !loadtest/results/.gitkeep
+
+# Rapports Schemathesis
+schemathesis-report/
+.hypothesis/
+.schemathesis/

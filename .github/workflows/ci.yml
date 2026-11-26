@@ -29,6 +29,8 @@ jobs:
       - run: uv run ruff check --output-format=github .
       - run: uv run ruff format --check .
       - run: uv run mypy
+      - name: openapi.json à jour (contrôle de dérive du contrat)
+        run: uv run python scripts/export_openapi.py --check
 
   test:
     name: Tests (PostgreSQL 16, Redis) + couverture ≥ 85 %
@@ -105,6 +107,34 @@ jobs:
       - name: Journaux en cas d'échec
         if: failure()
         run: docker compose logs --no-color
+      - name: Arrêt
+        if: always()
+        run: docker compose down --volumes
+
+  contract:
+    name: Contrat OpenAPI (Schemathesis, toutes vérifications)
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync
+      - name: Démarrer la pile (limitation de débit désactivée pour explorer en profondeur)
+        run: docker compose up --build --detach --wait --wait-timeout 240
+        env:
+          XAALIS_RATE_LIMIT_ENABLED: "false"
+      - name: Schemathesis sur /openapi.json
+        run: ./scripts/schemathesis.sh http://localhost:8000 50
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: schemathesis-report
+          path: schemathesis-report/
+      - name: Journaux en cas d'échec
+        if: failure()
+        run: docker compose logs --no-color api
       - name: Arrêt
         if: always()
         run: docker compose down --volumes

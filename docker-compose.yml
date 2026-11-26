@@ -17,6 +17,7 @@ x-app: &app
     XAALIS_API_KEY_PEPPER: ${XAALIS_API_KEY_PEPPER:-dev-only-api-key-pepper-not-for-production}
     XAALIS_JWT_SECRET: ${XAALIS_JWT_SECRET:-dev-only-jwt-secret-not-for-production-use}
     XAALIS_LOG_LEVEL: ${XAALIS_LOG_LEVEL:-INFO}
+    XAALIS_RATE_LIMIT_ENABLED: ${XAALIS_RATE_LIMIT_ENABLED:-true}
     XAALIS_OPERATORS_BASE_URL: http://operators:8100
     XAALIS_PUBLIC_BASE_URL: http://api:8000
     XAALIS_MERCHANT_DEMO_URL: http://merchant-demo:8200/webhooks
