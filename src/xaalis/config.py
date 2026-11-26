@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     demo_test_publishable_key: SecretStr | None = None
     demo_test_secret_key: SecretStr | None = None
 
+    # OWASP API4 : taille maximale d'un corps de requête.
+    max_body_bytes: int = Field(default=1024 * 1024, ge=1024)
+
     # XG-13 : limites de débit.
     rate_limit_enabled: bool = True
     rate_limit_per_key_per_minute: int = Field(default=100, ge=1)
