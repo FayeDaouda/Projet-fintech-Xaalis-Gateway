@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Path
+from fastapi import APIRouter, Path, Query
 from pydantic import Field, SecretStr
 
 from xaalis.admin.service import authenticate_admin
@@ -16,6 +16,7 @@ from xaalis.api.problems import Problem, ProblemError
 from xaalis.api.resources import ResourcesDep, SessionDep
 from xaalis.api.schemas import ApiModel
 from xaalis.ledger.health import check_ledger_health
+from xaalis.ledger.journal import JournalTransaction, list_transactions
 from xaalis.merchants import service as merchants
 from xaalis.merchants.models import Merchant
 
@@ -76,6 +77,71 @@ async def ledger_health(_: AdminDep, session: SessionDep) -> LedgerHealthOut:
 
 
 # --------------------------------------------------------------------------- connexion
+
+
+class JournalLineOut(ApiModel):
+    account: str = Field(examples=["merchant_pending:m_01JD8Q3W7Z4K2N6R5T9V0XBCYA"])
+    account_kind: str = Field(examples=["merchant_pending"])
+    amount: int = Field(description="Débit > 0, crédit < 0 (XOF, entier).", examples=[-9820])
+
+
+class LedgerTransactionOut(ApiModel):
+    id: str
+    object: Literal["ledger_transaction"] = "ledger_transaction"
+    kind: str = Field(examples=["payment_capture"])
+    reference: str = Field(description="Fait métier comptabilisé : intent, remboursement…")
+    livemode: bool
+    description: str | None
+    created_at: datetime
+    entries: list[JournalLineOut]
+    total: int = Field(description="Somme des écritures : toujours 0 (XG-16).", examples=[0])
+
+    @classmethod
+    def of(cls, item: JournalTransaction) -> LedgerTransactionOut:
+        row = item.transaction
+        return cls(
+            id=row.id,
+            kind=row.kind,
+            reference=row.reference,
+            livemode=row.livemode,
+            description=row.description,
+            created_at=row.created_at,
+            entries=[
+                JournalLineOut(
+                    account=line.account, account_kind=line.account_kind, amount=line.amount
+                )
+                for line in item.lines
+            ],
+            total=item.total,
+        )
+
+
+@router.get(
+    "/ledger/transactions",
+    response_model=Page[LedgerTransactionOut],
+    summary="Journal du grand livre : transactions et écritures (lecture seule)",
+)
+async def ledger_transactions(
+    _: AdminDep,
+    session: SessionDep,
+    limit: LimitQuery = DEFAULT_PAGE_SIZE,
+    starting_after: Annotated[str | None, cursor_param("ltx")] = None,
+    merchant_id: Annotated[str | None, Query(pattern=MERCHANT_ID_PATTERN)] = None,
+    reference: Annotated[
+        str | None, Query(pattern=r"^[a-z]{1,4}_[0-9A-HJKMNP-TV-Z]{26}$", max_length=40)
+    ] = None,
+) -> Page[LedgerTransactionOut]:
+    rows, has_more = await list_transactions(
+        session,
+        limit=limit,
+        starting_after=starting_after,
+        merchant_id=merchant_id,
+        reference=reference,
+    )
+    data = [LedgerTransactionOut.of(row) for row in rows]
+    return Page[LedgerTransactionOut](
+        data=data, has_more=has_more, next_cursor=data[-1].id if has_more else None
+    )
 
 
 class AdminLogin(ApiModel):
