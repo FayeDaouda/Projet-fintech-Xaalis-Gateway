@@ -21,25 +21,28 @@ OpenAPI), et éventuellement http://localhost:8000/metrics.
 
 ## Option A — dans la console web (recommandée pour la vidéo)
 
-Ouvrir http://localhost:8200, puis **Simulateur opérateurs → Mode présentation** (callbacks
-en 1,5 s, sans aléa : le tournage est reproductible). « Nouveau marchand », en bas du menu,
-remet les chiffres à zéro entre deux prises.
+Ouvrir http://localhost:8200 (le **Centre de contrôle** s'affiche), puis **Simulateur
+opérateurs → Mode présentation** (callbacks en 1,5 s, sans aléa : tournage reproductible).
+« Nouveau marchand », en bas du menu, remet les chiffres à zéro entre deux prises ; la
+palette <kbd>⌘K</kbd> donne accès à tous les écrans et aux actions de démonstration. Chaque
+écran commence par une présentation (« Ce que vous voyez », « Sous le capot ») qui sert de
+support visuel.
 
-| Temps | Écran | Geste | À dire |
+| Temps | Écran | Geste | Message |
 |---|---|---|---|
-| 0:00 | Terminal + `/docs` | `docker compose ps`, contrat OpenAPI | Une API pour trois opérateurs ; tout démarre avec une commande |
-| 0:30 | **Boutique** | 2 articles, puce « 78 · Go Pay », Payer | Chronologie et flux SSE en direct (clé publique) ; reçu : commission (XG-04), numéro masqué (XG-03), webhook vérifié |
-| 1:15 | **Simulateur** puis **Boutique** | Panne Ndiaga (2 min), puis payer avec « 77 » | Ndiaga est le moins cher (XG-06) mais en panne : badge « bascule », Go Pay ; jamais de double débit (ADR 0007) |
-| 2:00 | **Paiements** | Ouvrir le premier paiement, rembourser 3 000 | Requête signée HMAC et idempotente ; XG-08 à XG-11 ; historique « Remb. partiel » |
-| 2:40 | **Webhooks** | Activer la panne, payer dans la boutique, revenir | 8 points rouges puis « Dead letter » ; désactiver la panne, « Rejouer » → « Traité » |
-| 3:30 | **Boutique** puis **Rapprochement** | 5 ou 6 paiements, puis « Lancer le rapprochement » | Les anomalies injectées sont toutes cochées : 4 types d'écarts détectés ; export CSV |
-| 4:15 | **Rapprochement** puis **Vue d'ensemble** | « Régler le jour même » (409), « Simuler J+1 », puis « Virer » | Jours de Dakar (XG-15) ; seules les lignes saines sont réglées ; grand livre à somme nulle (XG-16) |
-| 4:35 | **Bonus** | Boutique : puce « 77 000 00 00 · signalé » ; Grafana (:3000) ; une trace dans Jaeger (:16686) | Scoring gRPC avant tout débit (deadline 150 ms, repli justifié) ; une seule trace traverse 5 services, outbox comprise |
-| 4:50 | Conclusion | CI verte, `docs/adr/` | 670+ tests sur PostgreSQL réel, Schemathesis sans écart, 14 ADR |
+| 0:00 | Centre de contrôle | Recharger : écran de démarrage | Une API pour trois opérateurs ; tout démarre avec une commande |
+| 0:25 | Centre de contrôle | « Rafale × 5 » | La carte suit chaque paiement : API, outbox, worker, anti-fraude, opérateur, callback, grand livre, webhook |
+| 0:55 | Boutique | 2 articles, puce « 78 », Payer | Routage annoncé ; suivi SSE avec la clé publique ; reçu : commission (XG-04), numéro masqué (XG-03) |
+| 1:35 | Simulateur → Boutique | Panne Ndiaga, payer en « 77 », Rétablir | Bascule sur refus certain uniquement, jamais de double débit (ADR 0007) |
+| 2:10 | Paiements | Rembourser 3 000 | Signé HMAC, idempotent (XG-08 à XG-11) ; écritures et trace du paiement |
+| 2:40 | Webhooks | Panne 503, paiement de démo (⌘K), Rejouer | 8 tentatives, dead letter, rejeu ; outbox transactionnel |
+| 3:20 | Rapprochement & T+1 | Lancer, régler le jour même, J+1 | Anomalies injectées toutes détectées ; T+1 en heure de Dakar (XG-15) |
+| 3:55 | Grand livre | Montrer débit = crédit et Σ = 0 | Partie double garantie par PostgreSQL (XG-16, ADR 0001) |
+| 4:15 | Centre de contrôle, Grafana, Jaeger | « Paiement suspect » | Bonus : anti-fraude gRPC 150 ms (ADR 0013), traces et tableau de bord (ADR 0014) |
+| 4:40 | GitHub Actions | CI verte | 680+ tests sur PostgreSQL réel, Schemathesis sans écart, 14 ADR |
 
-Le rapprochement porte sur tous les paiements du jour : avec un seul ou deux paiements, les
-anomalies du relevé piégé peuvent tous les toucher et rien n'est réglé à J+1. D'où les
-quelques paiements supplémentaires avant l'étape 5.
+La rafale de 0:25 fournit assez de paiements pour que le règlement J+1 de 3:20 en libère une
+partie (les anomalies du relevé piégé n'en touchent que quelques-uns).
 
 ## Option B — par le script
 

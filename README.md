@@ -40,13 +40,17 @@ d'administration, son endpoint de webhooks enregistré).
 
 | Écran | Ce qu'on y voit |
 |---|---|
+| **Centre de contrôle** | Carte animée du parcours de chaque paiement (API, outbox, worker, anti-fraude, opérateur, callback, grand livre, webhook), fil d'activité, indicateurs du jour, paiements de démonstration |
 | **Boutique** | Panier, paiement Mobile Money, suivi en direct par SSE jusqu'au reçu (opérateur choisi, commission, net, webhook reçu) |
 | **Vue d'ensemble** | Revenus, volumes par jour et par opérateur, taux de succès (GraphQL), soldes et virement |
 | **Paiements** | Liste filtrable, historique des transitions, remboursement partiel ou total |
 | **Webhooks** | Événements reçus et vérifiés, panne simulée du marchand, relances, dead letter, rejeu |
 | **Rapprochement & T+1** | Relevés piégés, écarts détectés face aux anomalies injectées, règlement, santé du grand livre |
+| **Grand livre** | Journal comptable en débit / crédit, transaction par transaction, et somme de toutes les écritures (toujours 0) |
 | **Simulateur opérateurs** | Panne d'un opérateur (bascule), mode présentation (callbacks en 1,5 s, sans aléa) |
 
+Chaque écran s'ouvre sur une présentation (ce que l'on voit, ce qui tourne dessous) ; la
+palette <kbd>⌘K</kbd> donne accès à tous les écrans et aux actions de démonstration.
 Le navigateur ne détient aucun secret : il parle au serveur du marchand, qui signe et relaie
 vers la passerelle ([ADR 0012](docs/adr/0012-console-web-du-marchand-de-demonstration.md)).
 Thème clair ou sombre, utilisable sur mobile.
