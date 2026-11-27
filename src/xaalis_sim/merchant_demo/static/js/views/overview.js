@@ -2,7 +2,7 @@
 
 import { api, newIdempotencyKey } from "../api.js";
 import { legend, stackedBars, successRates, volumesTable } from "../charts.js";
-import { amount, busyButton, confirmDialog, emptyState, fmt, h, icon, operator, problemToast, statusPill, toast } from "../ui.js";
+import { amount, busyButton, confirmDialog, emptyState, fmt, h, icon, operator, problemToast, statusPill, toast, pageIntro } from "../ui.js";
 
 let days = 7;
 let showTable = false;
@@ -31,10 +31,19 @@ export async function render(root) {
   const body = h("div", { class: "stack" });
   const periodBtns = [7, 30].map((n) => h("button", { type: "button", "aria-pressed": String(days === n), onclick: () => { days = n; periodBtns.forEach((b, i) => b.setAttribute("aria-pressed", String([7, 30][i] === n))); load(); } }, `${n} jours`));
   root.append(
-    h("div", { class: "page-head" },
-      h("div", null, h("h1", null, "Vue d'ensemble"), h("p", null, "Indicateurs calculés par l'API GraphQL de reporting, en jours comptables de Dakar.")),
-      h("div", { class: "actions" }, h("div", { class: "segmented", role: "group", "aria-label": "Période" }, periodBtns),
-        h("button", { type: "button", class: "btn icon", "aria-label": "Actualiser", onclick: () => load() }, icon("refresh")))),
+pageIntro({
+      id: "overview",
+      eyebrow: "Piloter · tableau de bord",
+      title: "Vue d'ensemble de l'activité",
+      lead: "Les indicateurs du marchand, calculés par l'API GraphQL de reporting en jours comptables de Dakar : volume encaissé, commissions, remboursements, revenu net, répartition par opérateur et soldes issus du grand livre.",
+      seen: [
+        "Les volumes par jour et par opérateur ; survolez une barre pour le détail, ou basculez en tableau.",
+        "Le taux de succès de chaque opérateur, en pour mille entiers.",
+        "Les soldes en attente, disponibles et virés, et le virement des fonds disponibles.",
+      ],
+      under: [["GraphQL", " Strawberry"], ["DataLoader", " sans N+1"], ["XG-15", " jours de Dakar"], ["XG-01", " montants entiers"], ["ADR", " 0011"]],
+      actions: [h("div", { class: "segmented", role: "group", "aria-label": "Période" }, periodBtns), h("button", { type: "button", class: "btn icon", "aria-label": "Actualiser", onclick: () => load() }, icon("refresh"))],
+    }),
     body);
 
   body.append(h("div", { class: "grid cols-4" }, Array.from({ length: 4 }, () => h("div", { class: "card kpi" }, h("span", { class: "skeleton", style: { width: "50%", height: "14px" } }, "."), h("span", { class: "skeleton", style: { width: "70%", height: "28px" } }, ".")))));

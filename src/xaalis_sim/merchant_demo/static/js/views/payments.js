@@ -1,7 +1,7 @@
 // Paiements : liste filtrable (GraphQL, pagination par curseur), détail et remboursement.
 
-import { api, newIdempotencyKey } from "../api.js";
-import { CAUSES, OPERATORS, STATUSES, amount, busyButton, closeLayer, copyButton, drawer, emptyState, fmt, h, icon, operator, problemToast, riskPill, skeletonRows, statusPill, toast } from "../ui.js";
+import { api, newIdempotencyKey, session } from "../api.js";
+import { ACCOUNTS, CAUSES, OPERATORS, STATUSES, TRANSACTIONS, amount, busyButton, closeLayer, copyButton, drawer, emptyState, fmt, h, icon, operator, problemToast, riskPill, skeletonRows, statusPill, toast, pageIntro } from "../ui.js";
 
 const filters = { status: "", operator: "" };
 const REFUNDABLE = new Set(["succeeded", "partially_refunded"]);
@@ -22,9 +22,19 @@ export async function render(root, { params }) {
     Object.entries(OPERATORS).map(([value, op]) => h("option", { value, selected: filters.operator === value }, op.name)));
 
   root.append(
-    h("div", { class: "page-head" },
-      h("div", null, h("h1", null, "Paiements"), h("p", null, "Tous les intents du marchand. Numéros toujours masqués (XG-03) ; cliquez une ligne pour l'historique et les remboursements.")),
-      h("div", { class: "actions" }, statusSelect, operatorSelect)),
+pageIntro({
+      id: "payments",
+      eyebrow: "Piloter · paiements",
+      title: "Paiements et remboursements",
+      lead: "Tous les paiements du marchand, filtrables et paginés par curseur. Chaque paiement révèle son historique de transitions, son évaluation anti-fraude, ses écritures comptables et sa trace distribuée ; un remboursement se déclenche en deux clics, signé et idempotent.",
+      seen: [
+        "La liste rafraîchie en direct ; les nouveaux paiements sont mis en évidence.",
+        "Le détail d'un paiement : machine à états, anti-fraude, écritures au grand livre, trace Jaeger.",
+        "Le remboursement partiel ou total, borné par le montant restant.",
+      ],
+      under: [["Machine à états", " 409 sinon"], ["HMAC", " requêtes signées"], ["XG-08 à 11", " remboursements"], ["XG-03", " numéros masqués"], ["ADR", " 0002 · 0008"]],
+      actions: [statusSelect, operatorSelect],
+    }),
     h("section", { class: "card" },
       h("div", { class: "card-head" }, h("h2", null, "Intents de paiement"), counter,
         h("div", { class: "right" }, h("button", { type: "button", class: "btn sm ghost", onclick: () => reload() }, icon("refresh"), "Actualiser"))),
@@ -132,8 +142,37 @@ export async function render(root, { params }) {
               h("span", { class: "subtle" }, fmt.dateTime(r.created_at)))))
           : h("p", { class: "subtle" }, "Aucun remboursement.")),
     ];
+    sections.push(await ledgerSection(p));
+    const s = await session().catch(() => null);
+    if (s?.links?.jaeger) {
+      const tags = encodeURIComponent(JSON.stringify({ "xaalis.intent_id": p.id }));
+      sections.push(h("section", null, h("h3", null, "Observabilité"),
+        h("a", { class: "btn sm", href: `${s.links.jaeger}/search?service=xaalis-worker&tags=${tags}&lookback=2d`, target: "_blank", rel: "noopener" },
+          icon("eye"), "Voir la trace distribuée dans Jaeger", icon("external")),
+        h("p", { class: "subtle", style: { fontSize: "12px", marginTop: "8px" } }, "Une seule trace relie l'API, le worker, l'anti-fraude, l'opérateur, le callback et le webhook (ADR 0014).")));
+    }
     if (REFUNDABLE.has(p.status) && remaining > 0) sections.push(refundForm(p, remaining, content));
     content.replaceChildren(...sections.filter(Boolean));
+  }
+
+  // Écritures du grand livre liées au paiement : encaissement, règlement, remboursements.
+  async function ledgerSection(p) {
+    const references = [p.id, ...p.refunds.map((r) => r.id)];
+    try {
+      const pages = await Promise.all(references.map((ref) => api.get(`/ledger?scope=platform&reference=${ref}&first=10`)));
+      const transactions = pages.flatMap((page) => page.data).sort((a, b) => a.created_at.localeCompare(b.created_at));
+      if (!transactions.length) return h("section", null, h("h3", null, "Grand livre"), h("p", { class: "subtle" }, "Aucune écriture : un paiement n'est comptabilisé qu'une fois réussi."));
+      return h("section", null, h("h3", null, "Grand livre"),
+        h("div", { class: "stack", style: { gap: "8px" } }, transactions.map((tx) => h("div", { class: "callout", style: { display: "block" } },
+          h("div", { class: "row between", style: { marginBottom: "6px" } }, h("strong", null, TRANSACTIONS[tx.kind] || tx.kind),
+            h("span", { class: `pill ${tx.total === 0 ? "ok" : "bad"}` }, icon(tx.total === 0 ? "check" : "alert"), "Σ = ", String(tx.total))),
+          h("dl", { class: "kv" }, tx.entries.flatMap((e) => [
+            h("dt", null, (ACCOUNTS[e.account_kind] || { label: e.account_kind }).label),
+            h("dd", { class: "num", style: { color: e.amount > 0 ? "var(--text)" : "var(--text-2)" } }, `${e.amount > 0 ? "+" : "−"}${fmt.number(Math.abs(e.amount))}`)]))))),
+        h("a", { class: "link-out", href: "#/grand-livre", style: { marginTop: "8px" } }, "Ouvrir le grand livre", icon("arrowRight")));
+    } catch {
+      return null; // le grand livre est un complément : le détail reste lisible sans lui
+    }
   }
 
   function refundForm(p, remaining, content) {

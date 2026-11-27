@@ -1,7 +1,7 @@
 // Webhooks : boîte de réception du marchand, panne simulée, relances, dead letter et rejeu.
 
 import { api, session } from "../api.js";
-import { busyButton, copyButton, emptyState, fmt, h, icon, problemToast, setBadge, toast } from "../ui.js";
+import { busyButton, copyButton, emptyState, fmt, h, icon, problemToast, setBadge, toast, pageIntro } from "../ui.js";
 
 const MAX_ATTEMPTS = 8;
 const gatewayState = new Map(); // event_id → livraison vue par la passerelle
@@ -14,8 +14,19 @@ export async function render(root) {
 
   const s = await session().catch(() => null);
   root.append(
-    h("div", { class: "page-head" },
-      h("div", null, h("h1", null, "Webhooks"), h("p", null, "Ce que reçoit le serveur du marchand : signature HMAC vérifiée, déduplication par identifiant d'événement, relances jusqu'à 8 tentatives puis dead letter."))),
+pageIntro({
+      id: "webhooks",
+      eyebrow: "Piloter · notifications",
+      title: "Webhooks signés et relances",
+      lead: "Chaque événement est notifié au serveur du marchand et signé par HMAC. Si le marchand ne répond pas, la passerelle relance huit fois sur environ 24 heures, puis place l'événement en dead letter, d'où il peut être rejoué. Rien ne part pour une transaction annulée : l'événement naît dans la même transaction que le paiement.",
+      seen: [
+        "Chaque tentative de livraison, point par point : acceptée, refusée ou doublon.",
+        "La panne simulée du serveur marchand, qui déclenche les relances.",
+        "La dead letter, puis le rejeu en un clic.",
+      ],
+      under: [["Outbox", " transactionnel"], ["t=…,v1=…", " signature"], ["8 tentatives", " jitter ±20 %"], ["SSRF", " bloquée en live"], ["ADR", " 0003 · 0009"]],
+      actions: [],
+    }),
     h("div", { class: "grid split" },
       h("section", { class: "card" },
         h("div", { class: "card-head" }, h("h2", null, "Événements reçus"), h("span", { class: "hint" }, "les plus récents d'abord"),

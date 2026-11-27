@@ -82,6 +82,14 @@ const PATHS = {
   calendar: "M4 6h16v15H4zM4 10h16M8 3v4M16 3v4",
   layers: "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5",
   rotate: "M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5",
+  search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
+  home: "M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6",
+  play: "M7 4l13 8-13 8z",
+  eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+  cpu: "M7 7h10v10H7zM10 10h4v4h-4zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4",
+  gauge: "M12 14l4-4M3.5 17a9 9 0 1 1 17 0",
+  database: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
+  inbox: "M3 13h5l2 3h4l2-3h5M5 5h14l2 8v6H3v-6z",
 };
 
 export function icon(name, extra = {}) {
@@ -281,3 +289,66 @@ export function setBadge(name, text, { alert = false } = {}) {
   el.textContent = text || "";
   el.classList.toggle("alert", alert);
 }
+
+// ------------------------------------------------------------------ présentation d'écran
+// Le texte qui raconte chaque écran : ce que l'on voit, et ce qui tourne sous le capot.
+// Repliable ; le choix est mémorisé localement (confort de lecture, sans effet métier).
+export function pageIntro({ id, eyebrow, title, lead, seen = [], under = [], actions = [] }) {
+  const key = `xaalis-intro-${id}`;
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(key) === "1"; } catch { /* stockage indisponible */ }
+  const toggle = h("button", { type: "button", class: "btn sm ghost intro-toggle", "aria-expanded": String(!collapsed) });
+  const root = h("section", { class: `intro${collapsed ? " collapsed" : ""}`, "aria-label": title },
+    h("div", { class: "intro-main" },
+      h("div", null, h("div", { class: "eyebrow" }, eyebrow), h("h1", null, title), h("p", { class: "lead" }, lead)),
+      actions.length ? h("div", { class: "actions" }, actions) : null),
+    h("div", { class: "intro-details" },
+      h("div", null, h("h2", null, "Ce que vous voyez"),
+        h("ul", null, seen.map((item) => h("li", null, icon("check"), h("span", null, ...[item].flat()))))),
+      h("div", null, h("h2", null, "Sous le capot"),
+        h("div", { class: "tech" }, under.map(([tag, text]) => h("span", null, h("b", null, tag), text))))),
+    toggle);
+  const paint = () => {
+    root.classList.toggle("collapsed", collapsed);
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    toggle.replaceChildren(icon(collapsed ? "plus" : "minus"), collapsed ? "Détails" : "Réduire");
+  };
+  toggle.addEventListener("click", () => {
+    collapsed = !collapsed;
+    try { localStorage.setItem(key, collapsed ? "1" : "0"); } catch { /* sans effet */ }
+    paint();
+  });
+  paint();
+  return root;
+}
+
+// Chiffre qui défile jusqu'à sa valeur (respecte « réduire les animations »).
+export function countUp(el, to, { format = fmt.number, duration = 700 } = {}) {
+  const from = Number(el.dataset.value || 0);
+  el.dataset.value = String(to);
+  if (from === to || matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = format(to); return; }
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - (1 - t) ** 3;
+    el.textContent = format(Math.round(from + (to - from) * eased));
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+export const ACCOUNTS = {
+  operator_clearing: { label: "À recevoir de l'opérateur", color: "var(--info)" },
+  merchant_pending: { label: "Dû au marchand · en attente (T+1)", color: "var(--warn)" },
+  merchant_available: { label: "Dû au marchand · disponible", color: "var(--brand)" },
+  merchant_payout: { label: "Viré au marchand", color: "var(--text-3)" },
+  xaalis_revenue: { label: "Commissions Xaalis", color: "var(--violet)" },
+};
+
+export const TRANSACTIONS = {
+  payment_capture: "Encaissement d'un paiement",
+  settlement: "Règlement T+1",
+  refund: "Remboursement",
+  payout: "Virement au marchand",
+  reversal: "Extourne",
+};

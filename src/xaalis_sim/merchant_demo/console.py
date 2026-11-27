@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import re
+import secrets
 from collections.abc import AsyncIterator
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
@@ -53,6 +54,24 @@ class CheckoutIn(Input):
     payer_phone: str = Field(min_length=9, max_length=20)
     description: str | None = Field(default=None, max_length=255)
     order_id: str | None = Field(default=None, max_length=64)
+
+
+class DemoPaymentIn(Input):
+    kind: Literal["normal", "suspect"] = "normal"
+
+
+DEMO_BLOCKED_PHONE = "+221770000000"  # liste noire de démonstration du service risk
+_DEMO_PREFIXES = ("78", "77", "76", "70", "75")
+_DEMO_AMOUNTS = (2_500, 3_500, 5_000, 7_500, 12_500, 15_000, 18_000, 24_000, 32_500, 45_000)
+
+
+def random_demo_phone() -> str:
+    prefix = _DEMO_PREFIXES[secrets.randbelow(len(_DEMO_PREFIXES))]
+    return f"+221{prefix}{secrets.randbelow(10**7):07d}"
+
+
+def random_demo_amount() -> int:
+    return _DEMO_AMOUNTS[secrets.randbelow(len(_DEMO_AMOUNTS))]
 
 
 class RefundIn(Input):
@@ -150,7 +169,9 @@ async def graphql_data(gateway: Gateway, query: str, variables: dict[str, Any]) 
 # --------------------------------------------------------------------------- routes
 
 
-def build_router(gateway: Gateway, inbox: WebhookInbox) -> APIRouter:
+def build_router(
+    gateway: Gateway, inbox: WebhookInbox, *, links: dict[str, str] | None = None
+) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["console"])
 
     # -- session ---------------------------------------------------------------------
@@ -161,12 +182,78 @@ def build_router(gateway: Gateway, inbox: WebhookInbox) -> APIRouter:
     @router.get("/session")
     async def session() -> dict[str, Any]:
         merchant = await gateway.merchant()
-        return {**merchant.public_view(), "today": dakar_today().isoformat()}
+        return {
+            **merchant.public_view(),
+            "today": dakar_today().isoformat(),
+            "links": links or {},
+        }
 
     @router.post("/session/reset")
     async def reset_session() -> dict[str, Any]:
         merchant = await gateway.reset()
-        return {**merchant.public_view(), "today": dakar_today().isoformat()}
+        return {
+            **merchant.public_view(),
+            "today": dakar_today().isoformat(),
+            "links": links or {},
+        }
+
+    # -- centre de contrôle -----------------------------------------------------------
+    @router.get("/activity")
+    async def activity() -> Response:
+        """Un seul appel pour la carte en direct : derniers paiements et webhooks reçus."""
+        data = await graphql_data(gateway, queries.PAYMENTS, {"first": 20, "after": None})
+        return JSONResponse(
+            {
+                "payments": data["payment_intents"]["nodes"],
+                "webhooks": inbox.recent(20),
+                "failing": inbox.failing,
+            }
+        )
+
+    @router.post("/demo/payment")
+    async def demo_payment(body: DemoPaymentIn) -> Response:
+        """Paiement de démonstration créé puis confirmé par le serveur du marchand.
+
+        ``suspect`` utilise le numéro de la liste noire de démonstration : refus anti-fraude.
+        """
+        phone = DEMO_BLOCKED_PHONE if body.kind == "suspect" else random_demo_phone()
+        created = await gateway.call(
+            "POST",
+            "/v1/payment-intents",
+            {
+                "amount": random_demo_amount(),
+                "currency": "XOF",
+                "payer_phone": phone,
+                "description": "Paiement de démonstration",
+                "metadata": {"order_id": f"DEMO-{secrets.randbelow(9_000) + 1_000}"},
+            },
+            idempotent=True,
+        )
+        if created.status_code != 201:
+            return relay(created)
+        intent_id = created.json()["id"]
+        return relay(
+            await gateway.call("POST", f"/v1/payment-intents/{intent_id}/confirm", idempotent=True)
+        )
+
+    # -- grand livre (back-office) ----------------------------------------------------
+    @router.get("/ledger")
+    async def ledger(
+        scope: Literal["merchant", "platform"] = "merchant",
+        first: Annotated[int, Query(ge=1, le=100)] = 15,
+        after: Annotated[str | None, Query(pattern=r"^ltx_[0-9A-Za-z]{26}$")] = None,
+        reference: Annotated[str | None, Query(pattern=r"^[a-z]{1,4}_[0-9A-Za-z]{26}$")] = None,
+    ) -> Response:
+        params = [f"limit={first}"]
+        if scope == "merchant":
+            params.append(f"merchant_id={(await gateway.merchant()).merchant_id}")
+        if after:
+            params.append(f"starting_after={after}")
+        if reference:
+            params.append(f"reference={reference}")
+        return relay(
+            await gateway.admin("GET", "/v1/admin/ledger/transactions?" + "&".join(params))
+        )
 
     # -- encaissement ----------------------------------------------------------------
     @router.post("/checkout")

@@ -1,7 +1,7 @@
 // Back-office Xaalis : rapprochement des relevés opérateurs, règlement T+1, santé du grand livre.
 
 import { api, session } from "../api.js";
-import { amount, busyButton, emptyState, fmt, h, icon, operator, problemToast, toast } from "../ui.js";
+import { amount, busyButton, emptyState, fmt, h, icon, operator, problemToast, toast, pageIntro } from "../ui.js";
 
 const TYPES = {
   missing_in_ledger: { label: "Absent de nos livres", tone: "bad", injected: "extra" },
@@ -47,9 +47,19 @@ export async function render(root) {
   const settleNext = busyButton(h("button", { type: "button", class: "btn primary" }, icon("calendar"), "Simuler J+1 et régler"), () => settle(addDays(day, 1)));
 
   root.append(
-    h("div", { class: "page-head" },
-      h("div", null, h("h1", null, "Rapprochement & règlement T+1"), h("p", null, "Opérations du back-office Xaalis (rôle administrateur), tous marchands confondus. Les relevés du simulateur contiennent des anomalies injectées volontairement.")),
-      h("div", { class: "actions" }, dateInput)),
+pageIntro({
+      id: "operations",
+      eyebrow: "Back-office · fin de journée",
+      title: "Rapprochement et règlement T+1",
+      lead: "Chaque jour, la passerelle compare son grand livre au relevé de chaque opérateur. Les relevés du simulateur contiennent des anomalies injectées volontairement ; seules les lignes rapprochées sans écart sont réglées au marchand le lendemain, en heure de Dakar.",
+      seen: [
+        "Les anomalies injectées par le simulateur, cochées une à une quand la passerelle les détecte.",
+        "Les écarts par type, exportables en CSV.",
+        "Le refus du règlement le jour même, puis le règlement à J+1 et la santé du grand livre.",
+      ],
+      under: [["Polars", " types stricts"], ["4 types", " d'écarts"], ["XG-15", " heure de Dakar"], ["T+1", " lignes saines seulement"], ["ADR", " 0010"]],
+      actions: [dateInput],
+    }),
     h("div", { class: "stack" },
       h("section", { class: "card" },
         h("div", { class: "card-head" }, h("h2", null, "Rapprochement des relevés opérateurs"),

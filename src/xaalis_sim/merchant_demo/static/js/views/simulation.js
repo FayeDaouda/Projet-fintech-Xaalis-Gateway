@@ -1,7 +1,7 @@
 // Simulateur d'opérateurs : pannes, latence, taux d'échec. Sert à montrer la bascule.
 
 import { api } from "../api.js";
-import { OPERATORS, busyButton, emptyState, fmt, h, icon, problemToast, setBadge, toast } from "../ui.js";
+import { OPERATORS, busyButton, emptyState, fmt, h, icon, problemToast, setBadge, toast, pageIntro } from "../ui.js";
 
 export async function render(root) {
   const cards = h("div", { class: "grid cols-3" });
@@ -15,9 +15,19 @@ export async function render(root) {
   });
 
   root.append(
-    h("div", { class: "page-head" },
-      h("div", null, h("h1", null, "Simulateur opérateurs"), h("p", null, "Les trois opérateurs simulés répondent comme de vrais partenaires : latence, refus, callbacks en double. Mettez-en un en panne pour voir la passerelle basculer.")),
-      h("div", { class: "actions" }, reset, presentation)),
+pageIntro({
+      id: "simulation",
+      eyebrow: "Laboratoire · résilience",
+      title: "Simulateur d'opérateurs",
+      lead: "Les trois opérateurs simulés se comportent comme de vrais partenaires : latence, refus, callbacks en double, pannes. Mettre un opérateur en panne montre la passerelle basculer vers le suivant, sans jamais risquer un double débit.",
+      seen: [
+        "L'état de chaque opérateur : en ligne ou en panne, latence, taux de refus et de doublons.",
+        "La panne de deux minutes et le rétablissement en un clic.",
+        "Le mode présentation : callbacks en 1,5 s, sans aléa, pour une démonstration reproductible.",
+      ],
+      under: [["XG-06", " moins cher d'abord"], ["Disjoncteur", " 5 échecs / 30 s"], ["Bascule", " refus certain seulement"], ["Épinglage", " réponse ambiguë"], ["ADR", " 0007"]],
+      actions: [reset, presentation],
+    }),
     cards,
     h("div", { class: "callout info", style: { marginTop: "16px" } }, icon("route"),
       h("div", null, h("strong", null, "Comment Xaalis choisit. "),

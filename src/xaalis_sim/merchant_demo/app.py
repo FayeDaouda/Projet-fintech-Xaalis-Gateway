@@ -61,6 +61,10 @@ class DemoSettings(BaseSettings):
     seed_admin_email: str = "admin@xaalis.example"
     seed_admin_password: SecretStr = SecretStr("dev-only-admin-password")
     demo_shop_name: str = "Maison Sandaga"
+    # Liens affichés par la console (adresses vues depuis le navigateur, pas depuis Docker).
+    console_docs_url: str = "http://localhost:8000/docs"
+    console_grafana_url: str = "http://localhost:3000/d/xaalis-overview"
+    console_jaeger_url: str = "http://localhost:16686"
 
 
 class FailToggle(BaseModel):
@@ -113,7 +117,12 @@ def create_app(
     app.state.inbox = inbox
     app.state.gateway = gateway
     install_error_handlers(app)
-    app.include_router(build_router(gateway, inbox))
+    links = {
+        "docs": config.console_docs_url,
+        "grafana": config.console_grafana_url,
+        "jaeger": config.console_jaeger_url,
+    }
+    app.include_router(build_router(gateway, inbox, links=links))
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

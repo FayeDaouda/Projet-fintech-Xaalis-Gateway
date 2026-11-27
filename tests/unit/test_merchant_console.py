@@ -271,3 +271,60 @@ async def test_presentation_mode_sets_deterministic_profiles_for_every_operator(
     assert received[0] == ("DELETE", None)
     assert {body["operator"] for _, body in received[1:]} == {"gopay", "teranga", "ndiaga"}
     assert all(body["failure_rate"] == 0 for _, body in received[1:])
+
+
+async def test_demo_payment_is_created_then_confirmed_server_side() -> None:
+    gateway = FakeGateway()
+    seen: list[dict[str, Any]] = []
+
+    def create(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            201, json={"id": "pi_01JD8Q3W7Z4K2N6R5T9V0XBCYA", "status": "created"}
+        )
+
+    gateway.routes[("POST", "/v1/payment-intents")] = create
+    gateway.routes[("POST", "/v1/payment-intents/pi_01JD8Q3W7Z4K2N6R5T9V0XBCYA/confirm")] = (
+        lambda _: httpx.Response(202, json={"status": "processing"})
+    )
+    async with _client(gateway) as http:
+        normal = await http.post("/api/demo/payment", json={"kind": "normal"})
+        suspect = await http.post("/api/demo/payment", json={"kind": "suspect"})
+
+    assert (normal.status_code, suspect.status_code) == (202, 202)
+    assert seen[0]["payer_phone"] != "+221770000000"
+    assert seen[1]["payer_phone"] == "+221770000000"  # liste noire de démonstration
+    assert all(100 <= body["amount"] <= 2_000_000 for body in seen)  # XG-01
+
+
+async def test_ledger_is_scoped_to_the_current_merchant_unless_platform_is_asked() -> None:
+    gateway = FakeGateway()
+    queries: list[str] = []
+
+    def journal(request: httpx.Request) -> httpx.Response:
+        queries.append(request.url.query.decode())
+        return httpx.Response(200, json={"object": "list", "data": [], "has_more": False})
+
+    gateway.routes[("GET", "/v1/admin/ledger/transactions")] = journal
+    async with _client(gateway) as http:
+        await http.get("/api/ledger")
+        await http.get("/api/ledger", params={"scope": "platform"})
+
+    assert "merchant_id=m_" in queries[0]
+    assert "merchant_id" not in queries[1]
+
+
+async def test_activity_combines_recent_payments_and_the_webhook_inbox() -> None:
+    gateway = FakeGateway()
+    gateway.routes[("POST", "/graphql")] = lambda _: httpx.Response(
+        200,
+        json={"data": {"paymentIntents": {"nodes": [{"id": "pi_1", "status": "SUCCEEDED"}]}}},
+    )
+    async with _client(gateway) as http:
+        body = (await http.get("/api/activity")).json()
+
+    assert body == {
+        "payments": [{"id": "pi_1", "status": "succeeded"}],
+        "webhooks": [],
+        "failing": False,
+    }

@@ -20,13 +20,13 @@
 <body>
   <div class="shell">
     <aside class="sidebar" id="sidebar" aria-label="Navigation principale">
-      <a class="brand" href="#/boutique" aria-label="Xaalis — accueil">
+      <a class="brand" href="#/accueil" aria-label="Xaalis — centre de contrôle">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M6 5l12 14M18 5L6 19"/></svg>
         </span>
         <span>
           <span class="brand-name">Xaalis</span><br>
-          <span class="brand-sub">Console marchand</span>
+          <span class="brand-sub">Plateforme de paiement</span>
         </span>
       </a>
 
@@ -41,7 +41,6 @@
       <nav class="nav" id="nav"></nav>
 
       <div class="sidebar-foot">
-        <a href="http://localhost:8000/docs" target="_blank" rel="noopener" id="docs-link"></a>
         <button type="button" id="reset-merchant"></button>
         <button type="button" id="theme-toggle"></button>
       </div>
@@ -52,6 +51,7 @@
         <button type="button" class="btn icon ghost menu-btn" id="menu-btn" aria-label="Ouvrir le menu" aria-controls="sidebar" aria-expanded="false"></button>
         <div class="crumbs" id="crumbs"></div>
         <div class="spacer"></div>
+        <button type="button" class="search-btn" id="search-btn" aria-label="Rechercher un écran ou une action"></button>
         <span class="pill test" title="Clés pk_test_ / sk_test_ : aucun argent réel ne circule">Mode test</span>
         <span class="pill" id="health-pill"><span class="dot"></span>Passerelle…</span>
       </header>

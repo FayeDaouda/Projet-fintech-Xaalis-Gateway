@@ -1,7 +1,7 @@
 // Boutique : panier, paiement Mobile Money, suivi en direct par SSE jusqu'au reçu.
 
 import { api, newIdempotencyKey } from "../api.js";
-import { CAUSES, OPERATORS, amount, copyButton, fmt, h, icon, operator, problemToast, riskPill, s } from "../ui.js";
+import { CAUSES, OPERATORS, amount, copyButton, fmt, h, icon, operator, problemToast, riskPill, s, pageIntro } from "../ui.js";
 
 const PRODUCTS = [
   { id: "wax", name: "Pagne wax Ndar", desc: "Coton imprimé, 6 yards, motifs de Saint-Louis.", price: 12500, art: "art-wax", tag: "Best-seller",
@@ -300,6 +300,19 @@ export async function render(root) {
   }
 
   root.append(
+    pageIntro({
+      id: "shop",
+      eyebrow: "Encaisser · parcours client",
+      title: "Le paiement vu par le client",
+      lead: "Une vraie boutique branchée sur la passerelle : le client choisit ses articles, saisit son numéro Mobile Money et suit son paiement en direct jusqu'au reçu. Le navigateur ne détient jamais la clé secrète : il parle au serveur du marchand, qui signe et relaie.",
+      seen: [
+        "Le routage annoncé dès la saisie du numéro : l'opérateur le moins cher qui accepte le préfixe.",
+        "La chronologie du paiement, poussée en temps réel par Server-Sent Events.",
+        "Le reçu : commission Xaalis, net marchand, numéro masqué, anti-fraude et webhook reçu.",
+      ],
+      under: [["SSE", " clé publique"], ["Idempotency-Key", " pas de doublon"], ["XG-04/05", " commission 1,8 %"], ["XG-03", " numéro masqué"], ["ADR", " 0011 · 0012"]],
+      actions: [],
+    }),
     h("section", { class: "shop-hero" },
       h("div", { class: "eyebrow" }, "Boutique de démonstration"),
       h("h1", null, "Maison Sandaga"),
