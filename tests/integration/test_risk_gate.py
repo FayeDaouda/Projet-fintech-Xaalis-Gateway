@@ -92,7 +92,11 @@ async def test_declined_payment_fails_before_any_debit_request(
     assert sum(platform.transport.calls.values()) == 0  # aucune demande de débit envoyée
     async with sessionmaker() as session:
         events = (
-            await session.scalars(select(PaymentEvent).where(PaymentEvent.intent_id == intent_id))
+            await session.scalars(  # ORDER BY explicite : sinon aucun ordre garanti
+                select(PaymentEvent)
+                .where(PaymentEvent.intent_id == intent_id)
+                .order_by(PaymentEvent.id)
+            )
         ).all()
         topics = (
             await session.scalars(
