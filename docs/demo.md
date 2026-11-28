@@ -48,7 +48,7 @@ partie (les anomalies du relevé piégé n'en touchent que quelques-uns).
 
 | Temps | Étape | À montrer | À dire |
 |---|---|---|---|
-| 0:00 | Introduction | `docker compose ps` (7 services sains), `/docs` | Une API pour trois opérateurs ; grand livre en partie double ; tout démarre avec une commande |
+| 0:00 | Introduction | `docker compose ps` (10 services sains), `/docs` | Une API pour trois opérateurs ; grand livre en partie double ; tout démarre avec une commande |
 | 0:30 | **1. SSE** | Les événements arrivent à l'écran au fil de l'eau | Flux SSE par clé publique ; `LISTEN/NOTIFY` transactionnel ; commission 180 (1,8 %, XG-04), numéro masqué (XG-03) |
 | 1:15 | **2. Bascule** | `operator: gopay` pour un numéro en 77, historique `operator_failover` | Routage au moins cher (XG-06) ; disjoncteur ; jamais de double débit : bascule seulement sur refus certain (ADR 0007) |
 | 2:00 | **3. Remboursement** | `partially_refunded`, solde | Requête signée HMAC + idempotente ; XG-08 à XG-11 ; 50 remboursements concurrents → exactement 10 (test) |
